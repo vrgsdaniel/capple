@@ -1,4 +1,4 @@
-from src.db.client import DB
+from src.db.db import DB
 
 
 class HealthCheckDataService:
