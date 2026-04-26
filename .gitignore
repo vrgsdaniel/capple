@@ -216,3 +216,20 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.yarn/cache
+.pnp.*
+dist/
+.next/
+.nuxt/
+.output/
+.cache/
+
+# Runtime / OS
+.DS_Store
+*.local
