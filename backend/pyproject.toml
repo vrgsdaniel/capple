@@ -12,6 +12,7 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi>=0.62b1",
     "opentelemetry-sdk>=1.41.1",
     "pydantic-settings>=2.14.0",
+    "supabase>=2.29.0",
     "uvicorn>=0.46.0",
 ]
 

@@ -1,3 +1,6 @@
+from src.db.client import DB
+
+
 class HealthCheckDataService:
     """Minimal availability checks for the readiness probe.
 
@@ -5,11 +8,11 @@ class HealthCheckDataService:
     connections, cache) as the service grows.
     """
 
+    def __init__(self, db: DB):
+        self.db = db
+
     def availability(self) -> dict[str, bool]:
         return {
             "service": True,
-            # TODO: add more dependencies, e.g. db
+            "database": self.db.is_alive(),
         }
-
-    def close(self) -> None:
-        pass

@@ -1,7 +1,7 @@
 from src.utils.logger import logger as log
-from collections.abc import Generator
 from fastapi import APIRouter, Depends, status
 from src.utils.general import http_error_response
+from src.db.client import DB, get_db
 from src.service.healthcheck import HealthCheckDataService
 from src.models.error_response import HttpErrorResponse
 from src.models.infra import ReadinessResponse
@@ -12,18 +12,13 @@ router = APIRouter(
 )
 
 
+def get_healthcheck_service(db: Annotated[DB, Depends(get_db)]) -> HealthCheckDataService:
+    return HealthCheckDataService(db)
+
+
 @router.get("/api/healthcheck", status_code=status.HTTP_200_OK)
 async def liveness() -> str:
     return "OK"
-
-
-def get_healthcheck_service() -> Generator[HealthCheckDataService, None, None]:
-    """Dependency that provides HealthCheckDataService with proper cleanup."""
-    service = HealthCheckDataService()
-    try:
-        yield service
-    finally:
-        service.close()
 
 
 @router.get(
