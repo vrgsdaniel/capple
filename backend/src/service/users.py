@@ -14,4 +14,6 @@ class UserService:
 
     def get_user_name_by_id(self, user_id: str) -> Dict | None:
         result = self.db.get_entity_by_id("profiles", user_id)
+        if not result:
+            return None
         return {"user_name": result["display_name"]}

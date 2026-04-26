@@ -26,7 +26,7 @@ def get_auth_service(credentials: Annotated[HTTPAuthorizationCredentials, Depend
 
 async def get_current_user(
     auth_service: Annotated[Auth, Depends(get_auth_service)],
-) -> dict:
+):
     try:
         user = await auth_service.get_current_user()
         if not user:
@@ -54,4 +54,9 @@ async def get_current_user_name(
     log.info("Fetching current user...")
     user_id = current_user.id
     user = user_service.get_user_name_by_id(user_id)
+    if not user:
+        raise http_error_response(
+            error_message="User profile not found.",
+            error_code=status.HTTP_404_NOT_FOUND,
+        )
     return {"id": user_id, "name": user["user_name"]}

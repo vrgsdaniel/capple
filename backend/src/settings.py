@@ -29,10 +29,5 @@ def get_settings() -> Settings:
 
 
 @lru_cache
-def get_db_settings() -> BaseSettings:
-    return SupaBaseSettings()
-
-
-@lru_cache
-def get_auth_settings() -> BaseSettings:
+def get_supabase_settings() -> SupaBaseSettings:
     return SupaBaseSettings()

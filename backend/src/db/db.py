@@ -1,11 +1,11 @@
 from supabase import create_client, Client
-from src.settings import get_db_settings
+from src.settings import get_supabase_settings
 from src.utils.logger import logger as log
 
 
 class DB:
     def __init__(self):
-        settings = get_db_settings()
+        settings = get_supabase_settings()
         self.client: Client = create_client(settings.url, settings.service_role_key)
 
     def get_first_id(self, table_name: str) -> str | None:
