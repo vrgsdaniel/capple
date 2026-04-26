@@ -1,4 +1,4 @@
 from src.controllers.api.infrastructure import router as infrastructure_router
+from src.controllers.api.users import router as users_router
 
-# TODO: add more routers here as we build out the API, e.g. for groceries, mood, etc.
-routers = [infrastructure_router]
+routers = [infrastructure_router, users_router]
