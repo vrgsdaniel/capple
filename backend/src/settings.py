@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     openapi_version: str = "3.0.2"
 
 
-class DBSettings(BaseSettings):
+class SupaBaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="SUPABASE_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
@@ -29,5 +29,10 @@ def get_settings() -> Settings:
 
 
 @lru_cache
-def get_db_settings() -> DBSettings:
-    return DBSettings()
+def get_db_settings() -> BaseSettings:
+    return SupaBaseSettings()
+
+
+@lru_cache
+def get_auth_settings() -> BaseSettings:
+    return SupaBaseSettings()

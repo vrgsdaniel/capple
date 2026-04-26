@@ -13,6 +13,10 @@ class DB:
         result = self.client.table(table_name).select("id").limit(1).execute()
         return result.data[0]["id"] if result.data else None
 
+    def get_entity_by_id(self, table_name: str, entity_id: str):
+        result = self.client.table(table_name).select("*").eq("id", entity_id).execute()
+        return result.data[0] if result.data else None
+
     def is_alive(self) -> bool:
         try:
             self.get_first_id("profiles")

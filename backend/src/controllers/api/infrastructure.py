@@ -1,7 +1,7 @@
 from src.utils.logger import logger as log
 from fastapi import APIRouter, Depends, status
 from src.utils.general import http_error_response
-from src.db.client import DB, get_db
+from src.db.db import DB, get_db
 from src.service.healthcheck import HealthCheckDataService
 from src.models.error_response import HttpErrorResponse
 from src.models.infra import ReadinessResponse
