@@ -20,13 +20,16 @@ RUN .venv/bin/pytest
 # ── Stage 3: final ────────────────────────────────────────────────────────────
 FROM python:3.13-slim AS final
 
+RUN adduser --disabled-password --gecos "" appuser
+
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 WORKDIR /app
 
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
-
+COPY --from=builder /app/.venv ./.venv
 COPY --from=builder /app/src ./src
+COPY pyproject.toml uv.lock ./
+
+USER appuser
 
 CMD ["/app/.venv/bin/python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8080"]
