@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     otel_exporter_endpoint: str = "https://otlp-gateway-prod-<region>.grafana.net/otlp/v1/traces"
     otel_exporter_headers: str = "Authorization=Basic <base64(instanceId:token)>"
     openapi_version: str = "3.0.2"
+    cors_origins: list[str] = ["http://localhost:5173"]
 
 
 class SupaBaseSettings(BaseSettings):

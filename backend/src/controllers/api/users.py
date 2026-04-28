@@ -59,4 +59,4 @@ async def get_current_user_name(
             error_message="User profile not found.",
             error_code=status.HTTP_404_NOT_FOUND,
         )
-    return {"id": user_id, "name": user["user_name"]}
+    return {"id": user_id, "name": user["user_name"], "avatar_url": user["avatar_url"]}

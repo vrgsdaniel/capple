@@ -5,6 +5,7 @@ from src.utils.logger import logger as log, setup_json_logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from http.client import responses
 from src.telemetry import get_trace_context, setup_telemetry
@@ -119,6 +120,13 @@ for router in routers:
     app.include_router(router)
 
 app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_settings().cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 if __name__ == "__main__":
     settings = get_settings()

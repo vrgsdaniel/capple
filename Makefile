@@ -14,6 +14,11 @@ migration:
 be-dev:
 	cd backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8080
 
+# Run: make fe-dev [port=3000]
+.PHONY: fe-dev
+fe-dev:
+	cd frontend && pnpm run dev $(if $(port),-- --port $(port),)
+
 # Run: make docker-build  (runs test stage, fails if lint/tests fail)
 .PHONY: docker-build
 docker-build:
