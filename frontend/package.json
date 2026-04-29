@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "lint": "eslint src --ext .ts,.tsx",
+    "preview": "vite preview",
+    "tsc": "tsc"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.2.8",
