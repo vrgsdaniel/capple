@@ -34,3 +34,5 @@ make db-push
 
 This runs `supabase db push` from the `infra/` directory, applying any pending migrations to the linked Supabase project.
 
+In CI — migrations are applied automatically when files under
+`infra/supabase/migrations/` are merged to main.
