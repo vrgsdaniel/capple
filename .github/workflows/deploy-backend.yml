@@ -79,4 +79,4 @@ jobs:
             SUPABASE_URL=${{ secrets.SUPABASE_URL }}
             SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
             ENV=prod
-            CORS_ORIGINS=["https://capple.pages.dev","http://localhost:5173"]
+            CORS_ORIGINS="https://capple.pages.dev,http://localhost:5173"
