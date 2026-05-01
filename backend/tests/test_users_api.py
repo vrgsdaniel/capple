@@ -9,7 +9,8 @@ from src.db.db import DB
 from src.service.users import UserService
 
 FAKE_USER = SimpleNamespace(id="user-111")
-FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Test Home", "invite_code": "abc123"}
+FAKE_HOUSEHOLD_ID = "00000000-0000-0000-0000-000000000001"
+FAKE_HOUSEHOLD = {"id": FAKE_HOUSEHOLD_ID, "name": "Test Home", "invite_code": "abc123"}
 
 
 @pytest.fixture
@@ -75,7 +76,7 @@ class TestJoinHousehold:
 
         resp = client.post("/api/households/join", json={"invite_code": "abc123"})
         assert resp.status_code == 200
-        assert resp.json()["id"] == "hh-001"
+        assert resp.json()["id"] == FAKE_HOUSEHOLD_ID
 
     def test_returns_404_for_invalid_code(self, client, mock_db):
         mock_db.get_household_by_code.return_value = None
@@ -86,7 +87,7 @@ class TestJoinHousehold:
 class TestGetMyHousehold:
     def test_returns_household(self, client, mock_db):
         mock_db.get_household_by_user.return_value = {
-            "id": "hh-001",
+            "id": FAKE_HOUSEHOLD_ID,
             "name": "Test Home",
             "invite_code": "abc123",
             "role": "owner",

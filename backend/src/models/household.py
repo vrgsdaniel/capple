@@ -1,14 +1,6 @@
-from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from pydantic import BaseModel
-
-
-class Household(BaseModel):
-    id: UUID = uuid4()
-    name: str
-    invite_code: str = str(uuid4())[:8]
-    created_at: datetime = datetime.now()
 
 
 class CreateHouseholdRequest(BaseModel):
@@ -17,3 +9,10 @@ class CreateHouseholdRequest(BaseModel):
 
 class JoinHouseholdRequest(BaseModel):
     invite_code: str
+
+
+class UserHouseholdResponse(BaseModel):
+    id: UUID
+    name: str
+    invite_code: str
+    role: str

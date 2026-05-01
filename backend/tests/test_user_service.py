@@ -7,8 +7,9 @@ from src.errors import NotFoundException
 from src.service.users import UserService
 
 FAKE_USER_ID = "user-111"
+FAKE_HOUSEHOLD_ID = "00000000-0000-0000-0000-000000000001"
 FAKE_HOUSEHOLD = {
-    "id": "hh-001",
+    "id": FAKE_HOUSEHOLD_ID,
     "name": "Test Home",
     "invite_code": "abc123",
     "created_by": FAKE_USER_ID,
@@ -47,9 +48,9 @@ class TestCreateHousehold:
 
         result = user_service.create_household(FAKE_USER_ID, "Test Home")
 
-        assert result == {"id": "hh-001", "name": "Test Home", "invite_code": "abc123"}
+        assert result == {"id": FAKE_HOUSEHOLD_ID, "name": "Test Home", "invite_code": "abc123"}
         mock_db.create_household.assert_called_once_with("Test Home", created_by=FAKE_USER_ID)
-        mock_db.add_member_to_household.assert_called_once_with("hh-001", FAKE_USER_ID, role="owner")
+        mock_db.add_member_to_household.assert_called_once_with(FAKE_HOUSEHOLD_ID, FAKE_USER_ID, role="owner")
 
 
 class TestJoinHousehold:
@@ -59,8 +60,8 @@ class TestJoinHousehold:
 
         result = user_service.join_household(FAKE_USER_ID, "abc123")
 
-        assert result == {"id": "hh-001", "name": "Test Home"}
-        mock_db.add_member_to_household.assert_called_once_with("hh-001", FAKE_USER_ID)
+        assert result == {"id": FAKE_HOUSEHOLD_ID, "name": "Test Home"}
+        mock_db.add_member_to_household.assert_called_once_with(FAKE_HOUSEHOLD_ID, FAKE_USER_ID)
 
     def test_raises_not_found_for_invalid_code(self, user_service, mock_db):
         mock_db.get_household_by_code.return_value = None
@@ -71,14 +72,14 @@ class TestJoinHousehold:
 class TestGetUserHousehold:
     def test_returns_household_when_member(self, user_service, mock_db):
         mock_db.get_household_by_user.return_value = {
-            "id": "hh-001",
+            "id": FAKE_HOUSEHOLD_ID,
             "name": "Test Home",
             "invite_code": "abc123",
             "role": "owner",
         }
         result = user_service.get_user_household(FAKE_USER_ID)
         assert result == {
-            "id": "hh-001",
+            "id": FAKE_HOUSEHOLD_ID,
             "name": "Test Home",
             "invite_code": "abc123",
             "role": "owner",

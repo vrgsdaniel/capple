@@ -7,7 +7,7 @@ from src.utils.general import http_error_response
 from src.utils.logger import logger as log
 from fastapi import APIRouter, Depends, HTTPException, status
 from src.db.db import DB, get_db
-from src.models.household import CreateHouseholdRequest, JoinHouseholdRequest
+from src.models.household import CreateHouseholdRequest, JoinHouseholdRequest, UserHouseholdResponse
 from src.service.users import UserService
 from typing import Annotated, Dict
 
@@ -103,11 +103,11 @@ async def join_household(
         )
 
 
-@router.get("/api/households/me", status_code=status.HTTP_200_OK)
+@router.get("/api/households/me", status_code=status.HTTP_200_OK, response_model=UserHouseholdResponse)
 async def get_my_household(
     current_user: Annotated[Dict, Depends(get_current_user)],
     user_service: Annotated[UserService, Depends(get_user_service)],
-) -> Dict:
+) -> UserHouseholdResponse:
     log.info("Fetching household for current user...")
     household = user_service.get_user_household(current_user.id)
     if not household:
@@ -115,4 +115,4 @@ async def get_my_household(
             error_message="No household found for this user.",
             error_code=status.HTTP_404_NOT_FOUND,
         )
-    return household
+    return UserHouseholdResponse(**household)
