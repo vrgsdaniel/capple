@@ -1,12 +1,15 @@
-import { StrictMode } from 'react'
+import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { AuthProvider, useAuth } from '@/hooks/useAuth'
-import { HouseholdProvider, useHousehold } from '@/hooks/useHousehold'
-import Login from '@/pages/Login'
-import Onboarding from '@/pages/Onboarding'
-import Dashboard from '@/pages/Dashboard'
+import { useAuth } from '@/hooks/useAuth'
+import { useHousehold } from '@/hooks/useHousehold'
+import { AuthProvider } from '@/providers/AuthProvider'
+import { HouseholdProvider } from '@/providers/HouseholdProvider'
 import './index.css'
+
+const Login = lazy(() => import('@/pages/Login'))
+const Onboarding = lazy(() => import('@/pages/Onboarding'))
+const Dashboard = lazy(() => import('@/pages/Dashboard'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -27,30 +30,32 @@ function AppRoutes() {
   if (loading) return null
 
   return (
-    <Routes>
-      <Route
-        path="/login"
-        element={user ? <Navigate to="/" replace /> : <Login />}
-      />
-      <Route
-        path="/onboarding"
-        element={
-          <ProtectedRoute>
-            <Onboarding />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/"
-        element={
-          <ProtectedRoute>
-            <HouseholdRoute>
-              <Dashboard />
-            </HouseholdRoute>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <Suspense fallback={null}>
+      <Routes>
+        <Route
+          path="/login"
+          element={user ? <Navigate to="/" replace /> : <Login />}
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <Onboarding />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HouseholdRoute>
+                <Dashboard />
+              </HouseholdRoute>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </Suspense>
   )
 }
 
