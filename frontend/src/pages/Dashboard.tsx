@@ -1,4 +1,5 @@
 import { useAuth } from '@/hooks/useAuth'
+import { useHousehold } from '@/hooks/useHousehold'
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ interface Profile {
 
 export default function Dashboard() {
   const { signOut } = useAuth()
+  const { household } = useHousehold()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,6 +39,9 @@ export default function Dashboard() {
             <h1 className="text-2xl font-semibold">
               Hello, {profile.name} 👋
             </h1>
+            {household && (
+              <p className="text-muted-foreground">{household.name}</p>
+            )}
           </>
         ) : (
           <p className="text-muted-foreground">Loading profile...</p>
