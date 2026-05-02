@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
-type Mode = 'choose' | 'create' | 'join'
+type Mode = 'choose' | 'create' | 'join' | 'created'
 
 export default function Onboarding() {
   const [mode, setMode] = useState<Mode>('choose')
@@ -14,7 +14,7 @@ export default function Onboarding() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const { createHousehold, joinHousehold } = useHousehold()
+  const { household, createHousehold, joinHousehold } = useHousehold()
 
   const handleCreate = async () => {
     if (!householdName.trim()) return
@@ -22,7 +22,7 @@ export default function Onboarding() {
     setError(null)
     try {
       await createHousehold(householdName)
-      navigate('/')
+      setMode('created')
     } catch {
       setError('Could not create household. Please try again.')
     } finally {
@@ -84,6 +84,25 @@ export default function Onboarding() {
               </Button>
               <Button variant="ghost" onClick={() => setMode('choose')}>
                 Back
+              </Button>
+            </CardContent>
+          </>
+        )}
+
+        {mode === 'created' && household && (
+          <>
+            <CardHeader className="text-center">
+              <CardTitle>Household created!</CardTitle>
+              <CardDescription>
+                Share this invite code with your partner so they can join
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 items-center">
+              <code className="text-2xl font-mono tracking-widest bg-muted px-4 py-2 rounded select-all">
+                {household.invite_code}
+              </code>
+              <Button className="w-full" onClick={() => navigate('/')}>
+                Continue
               </Button>
             </CardContent>
           </>
