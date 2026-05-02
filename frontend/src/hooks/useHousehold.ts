@@ -1,5 +1,12 @@
 import { createContext, useContext } from 'react'
 
+export class HouseholdConflictError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'HouseholdConflictError'
+  }
+}
+
 export interface Household {
   id: string
   name: string

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from supabase import Client
+from postgrest.exceptions import APIError
 
 from src.db.criteria import Criteria
+from src.errors import ConflictException
 
 
 class Store:
@@ -37,7 +39,12 @@ class Store:
         return self.find_one(Criteria().eq("id", entity_id))
 
     def insert(self, data: dict) -> dict:
-        result = self._client.table(self._table_name).insert(data).execute()
+        try:
+            result = self._client.table(self._table_name).insert(data).execute()
+        except APIError as e:
+            if e.code == "23505":
+                raise ConflictException(f"Duplicate entry in {self._table_name}") from e
+            raise
         return result.data[0]
 
     def update(self, entity_id: str, data: dict) -> dict | None:

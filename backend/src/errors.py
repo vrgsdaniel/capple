@@ -6,6 +6,14 @@ class NotFoundException(Exception):
         super().__init__(self.message)
 
 
+class ConflictException(Exception):
+    """Exception raised when an operation conflicts with existing state."""
+    
+    def __init__(self, message: str = "Conflict"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class InternalServerException(Exception):
     """Exception raised for internal server errors."""
     

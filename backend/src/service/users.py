@@ -1,7 +1,7 @@
 from typing import Dict
 
 from src.db.db import DB
-from src.errors import NotFoundException
+from src.errors import ConflictException, NotFoundException
 
 
 class UserService:
@@ -17,11 +17,17 @@ class UserService:
         return {"user_name": result["display_name"], "avatar_url": result["avatar_url"]}
 
     def create_household(self, user_id: str, name: str) -> Dict:
+        existing = self.db.get_household_by_user(user_id)
+        if existing:
+            raise ConflictException("You already belong to a household. You can only be in one household at a time.")
         household = self.db.create_household(name, created_by=user_id)
         self.db.add_member_to_household(household["id"], user_id, role="owner")
         return {"id": household["id"], "name": household["name"], "invite_code": household["invite_code"]}
 
     def join_household(self, user_id: str, invite_code: str) -> Dict:
+        existing = self.db.get_household_by_user(user_id)
+        if existing:
+            raise ConflictException("You already belong to a household. You can only be in one household at a time.")
         household = self.db.get_household_by_code(invite_code)
         if not household:
             raise NotFoundException("Invalid invite code")
