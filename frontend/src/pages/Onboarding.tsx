@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useHousehold } from '@/hooks/useHousehold'
+import { useHousehold, HouseholdConflictError } from '@/hooks/useHousehold'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,8 +23,12 @@ export default function Onboarding() {
     try {
       await createHousehold(householdName)
       setMode('created')
-    } catch {
-      setError('Could not create household. Please try again.')
+    } catch (err) {
+      if (err instanceof HouseholdConflictError) {
+        setError(err.message)
+      } else {
+        setError('Could not create household. Please try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -37,8 +41,12 @@ export default function Onboarding() {
     try {
       await joinHousehold(inviteCode.trim())
       navigate('/')
-    } catch {
-      setError('Invalid invite code. Check with your partner.')
+    } catch (err) {
+      if (err instanceof HouseholdConflictError) {
+        setError(err.message)
+      } else {
+        setError('Invalid invite code. Check with your partner.')
+      }
     } finally {
       setLoading(false)
     }

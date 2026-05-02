@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import api from '@/lib/api'
-import { HouseholdContext, type Household } from '@/hooks/useHousehold'
+import { HouseholdContext, HouseholdConflictError, type Household } from '@/hooks/useHousehold'
 
 export function HouseholdProvider({ children }: { children: React.ReactNode }) {
   const [household, setHousehold] = useState<Household | null>(null)
@@ -32,12 +32,26 @@ export function HouseholdProvider({ children }: { children: React.ReactNode }) {
   }
 
   const createHousehold = async (name: string) => {
-    await api.post('/api/households', { name })
+    try {
+      await api.post('/api/households', { name })
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        throw new HouseholdConflictError(err.response.data?.detail ?? 'You already belong to a household.')
+      }
+      throw err
+    }
     await fetchHousehold()
   }
 
   const joinHousehold = async (inviteCode: string) => {
-    await api.post('/api/households/join', { invite_code: inviteCode })
+    try {
+      await api.post('/api/households/join', { invite_code: inviteCode })
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 409) {
+        throw new HouseholdConflictError(err.response.data?.detail ?? 'You already belong to a household.')
+      }
+      throw err
+    }
     await fetchHousehold()
   }
 

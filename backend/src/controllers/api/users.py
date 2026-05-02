@@ -2,7 +2,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 from src.auth.auth import Auth
-from src.errors import NotFoundException
+from src.errors import ConflictException, NotFoundException
 from src.utils.general import http_error_response
 from src.utils.logger import logger as log
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -73,6 +73,11 @@ async def create_household(
     log.info("Creating household...")
     try:
         return user_service.create_household(current_user.id, body.name)
+    except ConflictException as e:
+        raise http_error_response(
+            error_message=e.message,
+            error_code=status.HTTP_409_CONFLICT,
+        )
     except Exception:
         log.error("Failed to create household.")
         raise http_error_response(
@@ -90,6 +95,11 @@ async def join_household(
     log.info("Joining household...")
     try:
         return user_service.join_household(current_user.id, body.invite_code)
+    except ConflictException as e:
+        raise http_error_response(
+            error_message=e.message,
+            error_code=status.HTTP_409_CONFLICT,
+        )
     except NotFoundException:
         raise http_error_response(
             error_message="Invalid invite code.",
