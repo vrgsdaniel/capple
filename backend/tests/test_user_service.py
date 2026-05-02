@@ -43,6 +43,7 @@ class TestGetUserNameById:
 
 class TestCreateHousehold:
     def test_creates_household_and_adds_owner(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.create_household.return_value = FAKE_HOUSEHOLD
         mock_db.add_member_to_household.return_value = {}
 
@@ -55,6 +56,7 @@ class TestCreateHousehold:
 
 class TestJoinHousehold:
     def test_joins_existing_household(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.get_household_by_code.return_value = FAKE_HOUSEHOLD
         mock_db.add_member_to_household.return_value = {}
 
@@ -64,6 +66,7 @@ class TestJoinHousehold:
         mock_db.add_member_to_household.assert_called_once_with(FAKE_HOUSEHOLD_ID, FAKE_USER_ID)
 
     def test_raises_not_found_for_invalid_code(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.get_household_by_code.return_value = None
         with pytest.raises(NotFoundException):
             user_service.join_household(FAKE_USER_ID, "bad-code")

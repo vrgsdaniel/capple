@@ -56,6 +56,7 @@ class TestGetMe:
 
 class TestCreateHousehold:
     def test_creates_household(self, client, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.create_household.return_value = FAKE_HOUSEHOLD
         mock_db.add_member_to_household.return_value = {}
 
@@ -64,6 +65,7 @@ class TestCreateHousehold:
         assert resp.json()["invite_code"] == "abc123"
 
     def test_returns_500_on_db_error(self, client, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.create_household.side_effect = RuntimeError("boom")
         resp = client.post("/api/households", json={"name": "Test Home"})
         assert resp.status_code == 500
@@ -71,6 +73,7 @@ class TestCreateHousehold:
 
 class TestJoinHousehold:
     def test_joins_household(self, client, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.get_household_by_code.return_value = FAKE_HOUSEHOLD
         mock_db.add_member_to_household.return_value = {}
 
@@ -79,6 +82,7 @@ class TestJoinHousehold:
         assert resp.json()["id"] == FAKE_HOUSEHOLD_ID
 
     def test_returns_404_for_invalid_code(self, client, mock_db):
+        mock_db.get_household_by_user.return_value = None
         mock_db.get_household_by_code.return_value = None
         resp = client.post("/api/households/join", json={"invite_code": "bad"})
         assert resp.status_code == 404
