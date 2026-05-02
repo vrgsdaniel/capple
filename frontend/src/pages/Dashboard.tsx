@@ -3,6 +3,8 @@ import { useHousehold } from '@/hooks/useHousehold'
 import { useEffect, useState } from 'react'
 import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import BatteryTab from '@/components/battery/BatteryTab'
 
 interface Profile {
   id: string
@@ -23,32 +25,47 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-background">
-      <div className="text-center space-y-4">
-        {error ? (
-          <p className="text-destructive text-sm">{error}</p>
-        ) : profile ? (
-          <>
-            {profile.avatar_url && (
-              <img
-                src={profile.avatar_url}
-                alt="avatar"
-                className="w-16 h-16 rounded-full mx-auto"
+    <div className="min-h-svh bg-background">
+      {/* top bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+        <div className="flex items-center gap-3">
+          {profile?.avatar_url && (
+            <img src={profile.avatar_url} alt="avatar"
+              className="w-8 h-8 rounded-full"/>
+          )}
+          <div>
+            <p className="text-sm font-medium">{profile?.name ?? '...'}</p>
+            {household && (
+              <p className="text-xs text-muted-foreground">{household.name}</p>
+            )}
+          </div>
+        </div>
+        <Button variant="ghost" size="sm" onClick={signOut}>Sign out</Button>
+      </div>
+
+      {error && (
+        <p className="text-destructive text-sm text-center mt-8">{error}</p>
+      )}
+
+      {/* tabs */}
+      <div className="max-w-3xl mx-auto px-4 py-6">
+        <Tabs defaultValue="battery">
+          <TabsList className="mb-6">
+            <TabsTrigger value="battery">⚡ Battery</TabsTrigger>
+            <TabsTrigger value="meals" disabled>🍽 Meals</TabsTrigger>
+            <TabsTrigger value="activities" disabled>📅 Activities</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="battery">
+            {profile && household && (
+              <BatteryTab
+                userId={profile.id}
+                userName={profile.name}
+                householdId={household.id}
               />
             )}
-            <h1 className="text-2xl font-semibold">
-              Hello, {profile.name} 👋
-            </h1>
-            {household && (
-              <p className="text-muted-foreground">{household.name}</p>
-            )}
-          </>
-        ) : (
-          <p className="text-muted-foreground">Loading profile...</p>
-        )}
-        <Button variant="outline" onClick={signOut}>
-          Sign out
-        </Button>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   )
