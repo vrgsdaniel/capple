@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import BatteryTab from '@/components/battery/BatteryTab'
+import ChatDrawer from '@/components/chat/ChatDrawer'
 
 interface Profile {
   id: string
@@ -67,6 +68,7 @@ export default function Dashboard() {
           </TabsContent>
         </Tabs>
       </div>
+      <ChatDrawer />
     </div>
   )
 }
