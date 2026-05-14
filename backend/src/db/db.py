@@ -18,8 +18,8 @@ class DB:
         try:
             self.store("profiles").find_one(Criteria().select("id"))
             return True
-        except Exception as e:
-            log.error(f"Database connection failed: {e}")
+        except Exception:
+            log.exception("Database connection failed")
             return False
 
     # --- profiles ---
