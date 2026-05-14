@@ -26,5 +26,5 @@ class Auth:
             log.error("No user found for the provided token.")
             raise
         except Exception as e:
-            log.error(f"Failed to fetch user information: {e}")
+            log.exception("Failed to fetch user information")
             raise InternalServerException("Failed to fetch user information.") from e

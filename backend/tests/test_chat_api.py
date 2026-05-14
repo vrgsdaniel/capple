@@ -18,6 +18,17 @@ class FakeGraph:
         yield {"chat_node": {"messages": [SimpleNamespace(content="hello from fake graph")]}}
 
 
+class FakeGraphFailBeforeFirstChunk:
+    def stream(self, _state):
+        raise ValueError("{'error': 'missing llm env vars'}")
+
+
+class FakeGraphFailAfterFirstChunk:
+    def stream(self, _state):
+        yield {"chat_node": {"messages": [SimpleNamespace(content="hello before error")]}}
+        raise ValueError("{'error': 'missing llm env vars'}")
+
+
 @pytest.fixture
 def mock_db():
     db = MagicMock(spec=DB)
@@ -67,6 +78,34 @@ class TestChatApi:
         resp = client.post("/api/chat", json={"message": "hello", "history": []})
 
         assert resp.status_code == 500
+
+    def test_returns_500_when_stream_setup_fails(self, mock_db):
+        app = FastAPI()
+        app.include_router(router)
+        app.state.chat_graph = FakeGraphFailBeforeFirstChunk()
+        app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_chatbot] = lambda: SimpleNamespace(name="fake-chatbot")
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/chat", json={"message": "hello", "history": []})
+
+        assert resp.status_code == 500
+
+    def test_emits_error_event_when_stream_fails_after_first_chunk(self, mock_db):
+        app = FastAPI()
+        app.include_router(router)
+        app.state.chat_graph = FakeGraphFailAfterFirstChunk()
+        app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_chatbot] = lambda: SimpleNamespace(name="fake-chatbot")
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/chat", json={"message": "hello", "history": []})
+
+        assert resp.status_code == 200
+        assert 'event: message\ndata: "hello before error"' in resp.text
+        assert 'event: error\ndata: "Something went wrong. Please try again."' in resp.text
 
 
 class TestChatApiValidation:

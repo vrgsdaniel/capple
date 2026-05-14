@@ -1,6 +1,6 @@
 import json
 from typing import Annotated
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from src.controllers.api.users import get_current_user
@@ -67,19 +67,37 @@ async def chat(
 
     log.info(f"Starting chat for user {user_id} in household {household_id} with message: {body.message}")
 
+    stream_iter = iter(chat_service.stream_response(body.message, convert_history_to_dict(body.history)))
+    first_content = None
+
+    # Prime the iterator so failures before the first token can be returned as HTTP 500.
+    try:
+        first_content = next(stream_iter)
+    except StopIteration:
+        first_content = None
+    except NotFoundException as e:
+        log.exception("Chat not found error")
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        log.exception("Chat stream setup error")
+        raise HTTPException(status_code=500, detail="Something went wrong. Please try again.") from e
+
     async def event_stream():
         try:
+            if first_content is not None:
+                yield _sse(first_content)
+
             # Stream response content from the chat service
-            for content in chat_service.stream_response(body.message, convert_history_to_dict(body.history)):
+            for content in stream_iter:
                 yield _sse(content)
 
             yield _sse("[DONE]", event="done")
             log.info(f"Chat stream completed for user {user_id} in household {household_id}")
         except NotFoundException as e:
-            log.error(f"Chat not found error: {e}")
+            log.exception("Chat not found error")
             yield _sse(f"Error: {str(e)}", event="error")
-        except Exception as e:
-            log.error(f"Chat stream error: {e}", exc_info=True)
+        except Exception:
+            log.exception("Chat stream error")
             yield _sse("Something went wrong. Please try again.", event="error")
 
     return StreamingResponse(
