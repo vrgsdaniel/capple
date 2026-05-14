@@ -75,8 +75,8 @@ export function useChat() {
           }
         }
       }
-    } catch (err: any) {
-      if (err.name === 'AbortError') return
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
       setError('Could not reach the chat. Is the backend running?')
       // remove empty assistant placeholder on error
       setMessages(prev => prev.slice(0, -1))
