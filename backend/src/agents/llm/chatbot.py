@@ -28,9 +28,9 @@ class OpenAIChatbot(Chatbot):
         """
         from langchain_openai import ChatOpenAI
 
-        model_kwargs: dict[str, bool] = {}
+        extra_body: dict[str, bool] = {}
         if self._settings.open_ai_free_models_only:
-            model_kwargs["free_models_only"] = True
+            extra_body["free_models_only"] = True
 
         chat_kwargs = {
             "model": self._settings.open_ai_model,
@@ -39,8 +39,8 @@ class OpenAIChatbot(Chatbot):
             "temperature": self._settings.temperature,
             "max_retries": self._settings.max_retries,
         }
-        if model_kwargs:
-            chat_kwargs["model_kwargs"] = model_kwargs
+        if extra_body:
+            chat_kwargs["extra_body"] = extra_body
 
         return ChatOpenAI(
             **chat_kwargs,
