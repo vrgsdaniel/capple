@@ -12,6 +12,7 @@ from src.telemetry import get_trace_context, setup_telemetry
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.settings import get_settings
+from src.agents.graph import build_graph
 
 from src.controllers.api import routers
 from src.utils.general import timestamp
@@ -22,7 +23,7 @@ setup_json_logging(service=get_settings().service_name, environment=get_settings
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     """Manage application lifecycle: startup and shutdown events."""
-    # TODO
+    app.state.chat_graph = build_graph()
     log.info("Application startup complete")
     yield
     log.info("Application shutdown complete")
