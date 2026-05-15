@@ -5,7 +5,6 @@ from langchain_core.language_models.chat_models import BaseChatModel
 class Chatbot:
     def __init__(self):
         self._settings = get_llm_settings()
-        self.stream = self._settings.stream
         self.llm = self._build_llm()
 
     def _build_llm(self) -> BaseChatModel:
@@ -13,9 +12,6 @@ class Chatbot:
         Intended to be overridden by subclasses to construct the appropriate LLM instance based on settings.
         """
         raise NotImplementedError("Subclasses must implement _build_llm() to return an LLM instance.")
-
-    def invoke(self, messages):
-        return self.llm.invoke(messages)
 
     def stream(self, messages):
         return self.llm.stream(messages)

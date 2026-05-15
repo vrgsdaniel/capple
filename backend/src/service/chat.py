@@ -1,7 +1,10 @@
+from json import JSONDecodeError
 from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage
 from src.agents.llm.chatbot import Chatbot
 from src.agents.state import ChatState
 from src.db.db import DB
+from src.utils.logger import logger as log
 
 
 class ChatService:
@@ -47,11 +50,50 @@ class ChatService:
 
         return state
 
+    def _prepare_state_with_graph(self, initial_state: ChatState) -> ChatState:
+        """Run graph nodes that enrich state (context + system prompt)."""
+        if hasattr(self.graph, "invoke"):
+            prepared_state = self.graph.invoke(initial_state)
+            if prepared_state:
+                return prepared_state
+            return initial_state
+
+        # Compatibility fallback for test doubles that only expose stream().
+        prepared_state = dict(initial_state)
+        for output in self.graph.stream(initial_state):
+            for _, node_output in output.items():
+                if isinstance(node_output, dict):
+                    prepared_state.update(node_output)
+        return prepared_state
+
+    @staticmethod
+    def _extract_chunk_text(chunk) -> str:
+        """Extract text from LangChain chunk/message shapes."""
+        if chunk is None:
+            return ""
+
+        content = getattr(chunk, "content", chunk)
+        if isinstance(content, str):
+            return content
+
+        if isinstance(content, list):
+            parts: list[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    parts.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        parts.append(text)
+            return "".join(parts)
+
+        return ""
+
     def stream_response(self, message: str, history: list[dict]):
         """Stream chat responses as clean message content.
 
-        Handles all graph execution details internally and yields only
-        the AI response content string.
+        Runs the graph to enrich state with context and system prompt, then
+        streams model chunks directly from the configured chatbot.
 
         Args:
             message: The user's message
@@ -61,15 +103,22 @@ class ChatService:
             str: Content chunks from the AI response
         """
         initial_state = self._build_initial_state(message, history)
+        prepared_state = self._prepare_state_with_graph(initial_state)
 
-        # Stream the graph execution and extract responses
-        for output in self.graph.stream(initial_state):
-            # output is a dict with node_name as key and node output as value
-            for node_name, node_output in output.items():
-                # Only yield content from the chat_node (final AI response)
-                if node_name == "chat_node" and "messages" in node_output:
-                    messages = node_output["messages"]
-                    if messages:
-                        response = messages[-1]
-                        if hasattr(response, "content") and response.content:
-                            yield response.content
+        system_prompt = prepared_state.get("system_prompt", "You are a helpful assistant.")
+        messages = [SystemMessage(content=system_prompt)] + initial_state["messages"]
+
+        emitted_any_chunk = False
+        try:
+            for chunk in self.chatbot.stream(messages):
+                chunk_text = self._extract_chunk_text(chunk)
+                if chunk_text:
+                    emitted_any_chunk = True
+                    yield chunk_text
+        except JSONDecodeError:
+            if emitted_any_chunk:
+                # Some providers can emit a terminal malformed frame after valid chunks.
+                # Treat it as end-of-stream so clients still receive a clean done event.
+                log.warning("Ignoring terminal JSON decode error after streaming response chunks")
+                return
+            raise

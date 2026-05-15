@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from json import JSONDecodeError
 
 import pytest
 from fastapi import FastAPI
@@ -13,20 +14,28 @@ FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Home", "invite_code": "abc123", "role
 
 
 class FakeGraph:
-    def stream(self, _state):
-        yield {"context_assembler": {"battery_context": {"total_entries": 2}}}
-        yield {"chat_node": {"messages": [SimpleNamespace(content="hello from fake graph")]}}
+    def invoke(self, state):
+        return {**state, "system_prompt": "prep prompt", "battery_context": {"total_entries": 2}}
 
 
 class FakeGraphFailBeforeFirstChunk:
-    def stream(self, _state):
+    def invoke(self, _state):
         raise ValueError("{'error': 'missing llm env vars'}")
 
 
-class FakeGraphFailAfterFirstChunk:
-    def stream(self, _state):
-        yield {"chat_node": {"messages": [SimpleNamespace(content="hello before error")]}}
-        raise ValueError("{'error': 'missing llm env vars'}")
+class FakeChatbot:
+    def __init__(self, chunks=None, error_after_first=False, raise_json_error_after_chunks=False):
+        self._chunks = chunks or ["hello from fake graph"]
+        self._error_after_first = error_after_first
+        self._raise_json_error_after_chunks = raise_json_error_after_chunks
+
+    def stream(self, _messages):
+        for idx, chunk in enumerate(self._chunks):
+            if self._error_after_first and idx > 0:
+                raise ValueError("{'error': 'missing llm env vars'}")
+            yield SimpleNamespace(content=chunk)
+        if self._raise_json_error_after_chunks:
+            raise JSONDecodeError("Expecting value", "", 0)
 
 
 @pytest.fixture
@@ -44,7 +53,7 @@ def client(mock_db):
 
     app.dependency_overrides[get_current_user] = lambda: FAKE_USER
     app.dependency_overrides[get_db] = lambda: mock_db
-    app.dependency_overrides[get_chatbot] = lambda: SimpleNamespace(name="fake-chatbot")
+    app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
     return TestClient(app)
 
@@ -72,7 +81,7 @@ class TestChatApi:
         app.state.chat_graph = FakeGraph()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
         app.dependency_overrides[get_db] = lambda: mock_db
-        app.dependency_overrides[get_chatbot] = lambda: SimpleNamespace(name="fake-chatbot")
+        app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/chat", json={"message": "hello", "history": []})
@@ -85,20 +94,23 @@ class TestChatApi:
         app.state.chat_graph = FakeGraphFailBeforeFirstChunk()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
         app.dependency_overrides[get_db] = lambda: mock_db
-        app.dependency_overrides[get_chatbot] = lambda: SimpleNamespace(name="fake-chatbot")
+        app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/chat", json={"message": "hello", "history": []})
 
-        assert resp.status_code == 500
+        assert resp.status_code == 200
+        assert 'event: error\ndata: "Something went wrong. Please try again."' in resp.text
 
     def test_emits_error_event_when_stream_fails_after_first_chunk(self, mock_db):
         app = FastAPI()
         app.include_router(router)
-        app.state.chat_graph = FakeGraphFailAfterFirstChunk()
+        app.state.chat_graph = FakeGraph()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
         app.dependency_overrides[get_db] = lambda: mock_db
-        app.dependency_overrides[get_chatbot] = lambda: SimpleNamespace(name="fake-chatbot")
+        app.dependency_overrides[get_chatbot] = lambda: FakeChatbot(
+            chunks=["hello before error", "ignored"], error_after_first=True
+        )
 
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post("/api/chat", json={"message": "hello", "history": []})
@@ -106,6 +118,26 @@ class TestChatApi:
         assert resp.status_code == 200
         assert 'event: message\ndata: "hello before error"' in resp.text
         assert 'event: error\ndata: "Something went wrong. Please try again."' in resp.text
+
+    def test_finishes_cleanly_when_terminal_json_decode_error_happens_after_chunks(self, mock_db):
+        app = FastAPI()
+        app.include_router(router)
+        app.state.chat_graph = FakeGraph()
+        app.dependency_overrides[get_current_user] = lambda: FAKE_USER
+        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_chatbot] = lambda: FakeChatbot(
+            chunks=["hello", " world"],
+            raise_json_error_after_chunks=True,
+        )
+
+        client = TestClient(app, raise_server_exceptions=False)
+        resp = client.post("/api/chat", json={"message": "hello", "history": []})
+
+        assert resp.status_code == 200
+        assert 'event: message\ndata: "hello"' in resp.text
+        assert 'event: message\ndata: " world"' in resp.text
+        assert 'event: done\ndata: "[DONE]"' in resp.text
+        assert 'event: error\ndata: "Something went wrong. Please try again."' not in resp.text
 
 
 class TestChatApiValidation:

@@ -1,7 +1,6 @@
-import json
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from typing import Annotated, AsyncIterable
+from fastapi import APIRouter, Depends, Request
+from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from src.controllers.api.users import get_current_user
 from src.db.db import DB, get_db
@@ -47,20 +46,16 @@ def get_chat_service(
     return ChatService(user_id, household["id"], db, chatbot, graph)
 
 
-def _sse(data: str, event: str = "message") -> str:
-    return f"event: {event}\ndata: {json.dumps(data)}\n\n"
-
-
 def convert_history_to_dict(history):
     """Convert message history to dict format expected by the service."""
     return [{"role": m.role, "content": m.content} for m in history]
 
 
-@router.post("/api/chat")
+@router.post("/api/chat", response_class=EventSourceResponse)
 async def chat(
     body: ChatRequest,
     chat_service: Annotated[ChatService, Depends(get_chat_service)],
-):
+) -> AsyncIterable[ServerSentEvent]:
     """Stream chat responses using the LangGraph-powered chat service."""
     user_id = chat_service.user_id
     household_id = chat_service.household_id
@@ -70,41 +65,39 @@ async def chat(
     stream_iter = iter(chat_service.stream_response(body.message, convert_history_to_dict(body.history)))
     first_content = None
 
-    # Prime the iterator so failures before the first token can be returned as HTTP 500.
+    yield ServerSentEvent(comment="stream of chat updates")
+
+    # In response_class-based SSE handlers, setup executes during streaming.
+    # Emit an error event instead of raising HTTPException to keep stream semantics.
     try:
         first_content = next(stream_iter)
     except StopIteration:
         first_content = None
     except NotFoundException as e:
         log.exception("Chat not found error")
-        raise HTTPException(status_code=500, detail=str(e)) from e
-    except Exception as e:
+        yield ServerSentEvent(data=f"Error: {str(e)}", event="error")
+        return
+    except Exception:
         log.exception("Chat stream setup error")
-        raise HTTPException(status_code=500, detail="Something went wrong. Please try again.") from e
+        yield ServerSentEvent(data="Something went wrong. Please try again.", event="error")
+        return
 
-    async def event_stream():
-        try:
-            if first_content is not None:
-                yield _sse(first_content)
+    try:
+        event_id = 1
+        if first_content is not None:
+            yield ServerSentEvent(data=first_content, event="message", id=str(event_id), retry=5000)
+            event_id += 1
 
-            # Stream response content from the chat service
-            for content in stream_iter:
-                yield _sse(content)
+        # Stream response content from the chat service
+        for content in stream_iter:
+            yield ServerSentEvent(data=content, event="message", id=str(event_id), retry=5000)
+            event_id += 1
 
-            yield _sse("[DONE]", event="done")
-            log.info(f"Chat stream completed for user {user_id} in household {household_id}")
-        except NotFoundException as e:
-            log.exception("Chat not found error")
-            yield _sse(f"Error: {str(e)}", event="error")
-        except Exception:
-            log.exception("Chat stream error")
-            yield _sse("Something went wrong. Please try again.", event="error")
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+        yield ServerSentEvent(data="[DONE]", event="done")
+        log.info(f"Chat stream completed for user {user_id} in household {household_id}")
+    except NotFoundException as e:
+        log.exception("Chat not found error")
+        yield ServerSentEvent(data=f"Error: {str(e)}", event="error")
+    except Exception:
+        log.exception("Chat stream error")
+        yield ServerSentEvent(data="Something went wrong. Please try again.", event="error")

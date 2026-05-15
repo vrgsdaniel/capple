@@ -2,6 +2,7 @@ from src.errors import InternalServerException, NotFoundException
 from src.utils.logger import logger as log
 from src.settings import get_supabase_settings
 from supabase import create_client, Client
+from supabase_auth.errors import AuthApiError
 from functools import lru_cache
 
 
@@ -25,6 +26,9 @@ class Auth:
         except NotFoundException:
             log.error("No user found for the provided token.")
             raise
+        except AuthApiError:
+            log.exception("Invalid or expired token")
+            raise NotFoundException("Invalid token")
         except Exception as e:
             log.exception("Failed to fetch user information")
             raise InternalServerException("Failed to fetch user information.") from e
