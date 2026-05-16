@@ -1,6 +1,9 @@
 from datetime import datetime, timezone, timedelta
-from src.agents.state import ChatState, BatteryContext
+from zoneinfo import ZoneInfo
+
+from src.agents.state import ChatState, BatteryContext, DateTimeContext
 from src.db.db import get_db
+from src.agents.tools.weather import fetch_weather_context
 
 # For a future iteration:
 # def trend_detector(list_of_index, array_of_data, order=1):
@@ -27,7 +30,7 @@ def compute_trend(daily_avgs: list[float]) -> str:
 
 
 def battery_context_node(state: ChatState) -> dict:
-    """Load battery log context for the household into state."""
+    """Load battery logs, datetime context, and weather context into state."""
     db = get_db()
     household_id = state["household_id"]
     user_id = state["user_id"]
@@ -72,4 +75,20 @@ def battery_context_node(state: ChatState) -> dict:
         "days_since_partner_last_log": days_since_last(partner_logs),
     }
 
-    return {"battery_context": context}
+    now_utc = datetime.now(timezone.utc)
+    datetime_context: DateTimeContext = {
+        "utc_iso": now_utc.isoformat(),
+        "berlin_local_iso": now_utc.astimezone(ZoneInfo("Europe/Berlin")).isoformat(),
+        "madrid_local_iso": now_utc.astimezone(ZoneInfo("Europe/Madrid")).isoformat(),
+    }
+
+    weather_context = {
+        "Berlin": fetch_weather_context.invoke({"city": "Berlin", "latitude": 52.52, "longitude": 13.405}),
+        "Madrid": fetch_weather_context.invoke({"city": "Madrid", "latitude": 40.4168, "longitude": -3.7038}),
+    }
+
+    return {
+        "battery_context": context,
+        "datetime_context": datetime_context,
+        "weather_context": weather_context,
+    }

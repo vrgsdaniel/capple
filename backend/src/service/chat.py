@@ -2,7 +2,7 @@ from json import JSONDecodeError
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages import SystemMessage
 from src.agents.llm.chatbot import Chatbot
-from src.agents.state import ChatState
+from src.agents.state import ChatState, build_default_chat_state, ensure_chat_state
 from src.db.db import DB
 from src.utils.logger import logger as log
 
@@ -38,33 +38,34 @@ class ChatService:
         # Add the new user message
         messages = lc_history + [HumanMessage(content=message)]
 
-        # Initialize state with all required fields
-        state: ChatState = {
+        # Initialize state with defaults, then override request-specific fields.
+        state = {
+            **build_default_chat_state(),
             "messages": messages,
             "household_id": str(self.household_id),
             "user_id": self.user_id,
-            "battery_context": None,
             "chatbot": self.chatbot,
-            "system_prompt": "",  # Will be set by system_prompt_node
         }
 
-        return state
+        return ensure_chat_state(state)
 
     def _prepare_state_with_graph(self, initial_state: ChatState) -> ChatState:
         """Run graph nodes that enrich state (context + system prompt)."""
-        if hasattr(self.graph, "invoke"):
-            prepared_state = self.graph.invoke(initial_state)
-            if prepared_state:
-                return prepared_state
-            return initial_state
+        prepared_state = initial_state.model_dump()
+        if hasattr(self.graph, "stream"):
+            for output in self.graph.stream(prepared_state):
+                for _, node_output in output.items():
+                    if isinstance(node_output, dict):
+                        prepared_state.update(node_output)
+            return ensure_chat_state(prepared_state)
 
-        # Compatibility fallback for test doubles that only expose stream().
-        prepared_state = dict(initial_state)
-        for output in self.graph.stream(initial_state):
-            for _, node_output in output.items():
-                if isinstance(node_output, dict):
-                    prepared_state.update(node_output)
-        return prepared_state
+        if hasattr(self.graph, "invoke"):
+            invoked = self.graph.invoke(prepared_state)
+            if not invoked:
+                return initial_state
+            return ensure_chat_state(invoked)
+
+        raise RuntimeError("Chat graph must expose stream() or invoke()")
 
     @staticmethod
     def _extract_chunk_text(chunk) -> str:
@@ -105,8 +106,8 @@ class ChatService:
         initial_state = self._build_initial_state(message, history)
         prepared_state = self._prepare_state_with_graph(initial_state)
 
-        system_prompt = prepared_state.get("system_prompt", "You are a helpful assistant.")
-        messages = [SystemMessage(content=system_prompt)] + initial_state["messages"]
+        system_prompt = prepared_state.system_prompt or "You are a helpful assistant."
+        messages = [SystemMessage(content=system_prompt)] + initial_state.messages
 
         emitted_any_chunk = False
         try:

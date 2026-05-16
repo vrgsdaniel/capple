@@ -1,239 +1,216 @@
 # Capple
-planning app
+
+Capple is a household planning app for couples. It helps partners coordinate daily life through shared context: social battery tracking, household membership, and AI-assisted chat.
+
+## Product Direction
+
+Capple is being built as a practical "home operating layer" for two people:
+
+- Keep both partners aligned on energy and availability
+- Reduce planning overhead for everyday decisions
+- Make AI suggestions grounded in real household context
+
+The current focus is reliability and useful core flows before expanding into broader lifestyle features.
+
+## Current Scope
+
+Implemented now:
+
+- Supabase auth + profile/household foundation
+- Social battery logging
+- Battery trend charting in the frontend
+- FastAPI backend with service/controller architecture
+- LangGraph-powered chat flow with household-aware context assembly
+- Supabase migrations and local migration workflow
+
+In progress:
+
+- Hardening chat quality and streaming behavior
+- Improving battery insights and household context coverage
+
+## Tech Stack
+
+Frontend:
+
+- React + TypeScript + Vite
+- TanStack Query
+- Supabase JS client
+- Recharts
+
+Backend:
+
+- Python 3.13
+- FastAPI
+- LangGraph + LangChain OpenAI
+- Supabase Python client
+
+Tooling:
+
+- pnpm (frontend)
+- uv (backend)
+- Supabase CLI (migrations)
+- Docker Compose (backend container run)
+
+## Repository Layout
+
+```text
+capple/
+  backend/
+    src/
+      agents/
+      auth/
+      controllers/
+      db/
+      models/
+      service/
+    tests/
+  frontend/
+    src/
+      components/
+      hooks/
+      pages/
+      providers/
+  infra/
+    supabase/
+      migrations/
+```
+
+## Quick Start
+
+### 1. Prerequisites
+
+- Node.js 22+
+- pnpm
+- Python 3.13+
+- uv
+- Supabase CLI
+
+### 2. Environment
+
+Copy the backend template and fill in values:
+
+```bash
+cp example.env backend/.env
+```
+
+Frontend env vars (create `frontend/.env`):
+
+```bash
+VITE_API_BASE_URL=http://localhost:8080
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon-key>
+```
+
+### 3. Install Dependencies
+
+```bash
+cd frontend && pnpm install
+cd ../backend && uv sync
+```
+
+### 4. Run Locally
+
+Backend:
+
+```bash
+make be-dev
+```
+
+Frontend:
+
+```bash
+make fe-dev
+```
+
+Default local URLs:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8080`
+- API docs: `http://localhost:8080/api/docs`
 
 ## Database Migrations
 
-Migrations live in `infra/supabase/migrations/` and follow the naming convention `YYYYMMDDHHmmss_<identifier>.sql`.
+Migrations live in `infra/supabase/migrations/` and follow this naming scheme:
 
-### First-time setup
+`YYYYMMDDHHmmss_<identifier>.sql`
 
-Link your local `infra/` directory to the remote Supabase project (only needed once):
+Link Supabase project once:
 
 ```bash
 cd infra && supabase link --project-ref $SUPABASE_PROJECT
 ```
 
-### Create a new migration
+Create migration:
 
 ```bash
 make migration name=<identifier>
 ```
 
-Example:
-
-```bash
-make migration name=add_couples_table
-# Creates infra/supabase/migrations/20260426143022_add_couples_table.sql
-```
-
-### Apply migrations
+Apply pending migrations:
 
 ```bash
 make db-push
 ```
 
-This runs `supabase db push` from the `infra/` directory, applying any pending migrations to the linked Supabase project.
+## Testing and Linting
 
-In CI — migrations are applied automatically when files under
-`infra/supabase/migrations/` are merged to main.
-
-## Store & Criteria Pattern
-
-The data-access layer uses a **Store + Criteria** pattern so that querying any table is consistent and extensible without touching the core `DB` class.
-
-### Overview
-
-| Module | Purpose |
-|---|---|
-| `src/db/criteria.py` | Fluent, provider-agnostic filter builder |
-| `src/db/store.py` | Generic `Store` that translates `Criteria` into Supabase queries |
-| `src/db/db.py` | `DB` class — manages the client and exposes `db.store(table)` |
-
-### Basic usage
-
-```python
-from src.db.criteria import Criteria
-
-# Get a store for any table
-store = db.store("battery_logs")
-
-# Find many rows
-logs = store.find(
-    Criteria()
-    .eq("household_id", household_id)
-    .gte("created_at", since)
-    .order("created_at", ascending=False)
-    .limit(50)
-)
-
-# Find a single row
-log = store.find_one(Criteria().eq("serial", "ABC123"))
-
-# Shorthand — get by primary key
-log = store.get_by_id(some_uuid)
-```
-
-### Available Criteria operators
-
-| Method | SQL equivalent |
-|---|---|
-| `eq(col, val)` | `col = val` |
-| `neq(col, val)` | `col != val` |
-| `gt` / `gte` / `lt` / `lte` | `>` / `>=` / `<` / `<=` |
-| `like(col, pattern)` | `col LIKE pattern` |
-| `ilike(col, pattern)` | `col ILIKE pattern` (case-insensitive) |
-| `is_(col, val)` | `col IS val` |
-| `in_(col, list)` | `col IN (...)` |
-| `select(cols)` | Column projection (`"id, name"`) |
-| `limit(n)` | Limit result set |
-| `order(col, ascending=)` | Sort rows |
-
-### Extending Store with insert, update, and delete
-
-The base `Store` only handles reads. To support writes, add methods directly to `Store` in `src/db/store.py`:
-
-```python
-def insert(self, data: dict) -> dict:
-    result = self._client.table(self._table_name).insert(data).execute()
-    return result.data[0]
-
-def update(self, entity_id: str, data: dict) -> dict | None:
-    result = (
-        self._client.table(self._table_name)
-        .update(data)
-        .eq("id", entity_id)
-        .execute()
-    )
-    return result.data[0] if result.data else None
-
-def delete(self, entity_id: str) -> None:
-    self._client.table(self._table_name).delete().eq("id", entity_id).execute()
-```
-
-Usage from a service:
-
-```python
-store = db.store("households")
-
-# Insert
-household = store.insert({"name": "My Home", "invite_code": "abc123"})
-
-# Update
-store.update(household["id"], {"name": "Our Home"})
-
-# Delete
-store.delete(household["id"])
-```
-
-### Swapping the storage provider
-
-`Criteria` is provider-agnostic — it only holds data. The provider-specific part lives entirely in `Store._build_query`. To use a different backend (e.g. raw asyncpg, SQLAlchemy, DynamoDB), create a new store class that translates the same `Criteria` into that provider's query API:
-
-```python
-from src.db.criteria import Criteria, Criterion
-
-
-class SQLAlchemyStore:
-    """Example alternative store backed by SQLAlchemy."""
-
-    def __init__(self, session, model):
-        self._session = session
-        self._model = model
-
-    _OP_MAP = {
-        "eq": "__eq__",
-        "neq": "__ne__",
-        "gt": "__gt__",
-        "gte": "__ge__",
-        "lt": "__lt__",
-        "lte": "__le__",
-    }
-
-    def _apply_filter(self, query, criterion: Criterion):
-        col = getattr(self._model, criterion.column)
-        op = self._OP_MAP.get(criterion.operator)
-        if op:
-            return query.filter(getattr(col, op)(criterion.value))
-        if criterion.operator == "in_":
-            return query.filter(col.in_(criterion.value))
-        if criterion.operator == "like":
-            return query.filter(col.like(criterion.value))
-        raise ValueError(f"Unsupported operator: {criterion.operator}")
-
-    def find(self, criteria: Criteria | None = None) -> list:
-        criteria = criteria or Criteria()
-        query = self._session.query(self._model)
-        for f in criteria._filters:
-            query = self._apply_filter(query, f)
-        if criteria._order_by:
-            col = getattr(self._model, criteria._order_by)
-            query = query.order_by(col.asc() if criteria._ascending else col.desc())
-        if criteria._limit:
-            query = query.limit(criteria._limit)
-        return query.all()
-```
-
-The rest of the application (services, controllers) only depend on `Criteria` and the store's `find` / `find_one` / `get_by_id` interface, so swapping providers requires no changes outside the `db/` package.
-
-## Testing
-
-Tests live in `backend/tests/` and use `pytest`. Run them with:
+Backend tests:
 
 ```bash
 cd backend && uv run pytest tests/ -v
 ```
 
-### Strategy
+Backend lint:
 
-Since services only depend on `DB` and controllers only depend on services + auth, we mock at the boundary:
-
-- **Service tests** — mock `DB` with `MagicMock(spec=DB)` and inject it into the service constructor
-- **API tests** — use FastAPI's `dependency_overrides` to swap `get_db` and `get_current_user`, no real Supabase or auth needed
-
-### Service test example
-
-```python
-from unittest.mock import MagicMock
-from src.db.db import DB
-from src.service.users import UserService
-
-mock_db = MagicMock(spec=DB)
-service = UserService(mock_db)
-
-# Set up the mock return value
-mock_db.get_profile_by_id.return_value = {"display_name": "Alice", "avatar_url": "..."}
-
-# Call and assert
-result = service.get_user_name_by_id("user-123")
-assert result["user_name"] == "Alice"
-mock_db.get_profile_by_id.assert_called_once_with("user-123")
+```bash
+make lint
 ```
 
-`MagicMock(spec=DB)` ensures the mock only allows methods that exist on `DB` — calling a non-existent method raises `AttributeError`.
+Frontend lint:
 
-### API test example
-
-```python
-from types import SimpleNamespace
-from unittest.mock import MagicMock
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-from src.controllers.api.users import get_current_user, get_user_service, router
-from src.db.db import DB
-from src.service.users import UserService
-
-mock_db = MagicMock(spec=DB)
-fake_user = SimpleNamespace(id="user-111")
-
-app = FastAPI()
-app.include_router(router)
-app.dependency_overrides[get_user_service] = lambda: UserService(mock_db)
-app.dependency_overrides[get_current_user] = lambda: fake_user
-client = TestClient(app)
-
-mock_db.get_profile_by_id.return_value = {"display_name": "Alice", "avatar_url": "..."}
-resp = client.get("/api/me")
-assert resp.status_code == 200
+```bash
+cd frontend && pnpm run lint
 ```
 
-`dependency_overrides` replaces FastAPI's `Depends()` resolution at the framework level, so the real `get_db` (which would hit Supabase) and `get_current_user` (which would validate a JWT) are never called.
+## Roadmap (Future Plans)
+
+### Phase 1: Core Stability (Now)
+
+- Improve chat response quality with better guardrails and prompt shaping
+- Strengthen API error handling and observability
+- Add higher-coverage tests for service and controller layers
+- Improve onboarding and household creation/join UX
+
+### Phase 2: Shared Planning (Next)
+
+- Expand battery insights from simple trend views to actionable suggestions
+- Add household-level routines/check-ins
+- Introduce saved chat context and useful conversation memory controls
+
+### Phase 3: Meals and Groceries (Planned)
+
+- Shared grocery list with realtime sync
+- Pantry model and low-stock reminders
+- Recipe suggestion flow tied to pantry + battery context
+
+### Phase 4: Activities and Scheduling (Planned)
+
+- Household activity suggestions based on both partners' energy patterns
+- Calendar integration for lightweight planning windows
+- Favorites/history for places and activities
+
+### Phase 5: Intelligence and Personalization (Later)
+
+- Better long-term household memory and preferences
+- Adaptive suggestions that learn from accepted/rejected recommendations
+- Personalized weekly household recap and planning prompts
+
+## Development Notes
+
+- Backend follows a controller -> service -> db layering approach.
+- Data access uses a Store + Criteria pattern for query composition.
+- Chat orchestration runs through LangGraph state transitions.
+
+## License
+
+MIT
