@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+
 from langchain_core.tools import tool
 
 from src.agents.state import CityEvent

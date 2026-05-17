@@ -4,8 +4,8 @@ from langchain.agents import create_agent
 
 from src.agents.state import ChatState, ensure_chat_state
 from src.agents.tools.context_tools import get_battery_context, get_datetime_context
-from src.agents.tools.weather import fetch_weather_context
-from src.agents.tools.events import get_city_events_tool
+from src.agents.tools.weather_tools import fetch_weather_context
+from src.agents.tools.events_tools import get_city_events_tool
 from src.agents.tools.planning_tools import rank_city_plans
 
 PLANNING_AGENT_NODE = "planning_agent"

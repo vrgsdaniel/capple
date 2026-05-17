@@ -1,6 +1,6 @@
 from urllib.error import URLError
 
-from src.agents.tools import weather as weather_module
+from src.agents.tools import weather_tools as weather_module
 
 
 class _FakeResponse:

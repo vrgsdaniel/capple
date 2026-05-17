@@ -4,6 +4,7 @@ from json import JSONDecodeError
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
+
 from langchain_core.tools import tool
 
 from src.agents.state import WeatherContext
