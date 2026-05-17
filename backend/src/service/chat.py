@@ -2,7 +2,7 @@ from json import JSONDecodeError
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages import SystemMessage
 from src.agents.llm.chatbot import Chatbot
-from src.agents.state import ChatState, build_default_chat_state, ensure_chat_state
+from src.agents.state import build_default_chat_state, ensure_chat_state
 from src.db.db import DB
 from src.utils.logger import logger as log
 
@@ -17,7 +17,7 @@ class ChatService:
         self.chatbot = chatbot
         self.graph = graph
 
-    def _build_initial_state(self, message: str, history: list[dict]) -> ChatState:
+    def _build_initial_state(self, message: str, history: list[dict]) -> dict:
         """Build the initial state for the graph from message and history.
 
         Args:
@@ -47,23 +47,26 @@ class ChatService:
             "chatbot": self.chatbot,
         }
 
-        return ensure_chat_state(state)
+        ensure_chat_state(state)
+        return state
 
-    def _prepare_state_with_graph(self, initial_state: ChatState) -> ChatState:
+    def _prepare_state_with_graph(self, initial_state: dict) -> dict:
         """Run graph nodes that enrich state (context + system prompt)."""
-        prepared_state = initial_state.model_dump()
+        prepared_state = dict(initial_state)
         if hasattr(self.graph, "stream"):
             for output in self.graph.stream(prepared_state):
                 for _, node_output in output.items():
                     if isinstance(node_output, dict):
                         prepared_state.update(node_output)
-            return ensure_chat_state(prepared_state)
+            ensure_chat_state(prepared_state)
+            return prepared_state
 
         if hasattr(self.graph, "invoke"):
             invoked = self.graph.invoke(prepared_state)
             if not invoked:
                 return initial_state
-            return ensure_chat_state(invoked)
+            ensure_chat_state(invoked)
+            return invoked
 
         raise RuntimeError("Chat graph must expose stream() or invoke()")
 
@@ -106,8 +109,8 @@ class ChatService:
         initial_state = self._build_initial_state(message, history)
         prepared_state = self._prepare_state_with_graph(initial_state)
 
-        system_prompt = prepared_state.system_prompt or "You are a helpful assistant."
-        messages = [SystemMessage(content=system_prompt)] + initial_state.messages
+        system_prompt = prepared_state.get("system_prompt") or "You are a helpful assistant."
+        messages = [SystemMessage(content=system_prompt)] + initial_state["messages"]
 
         emitted_any_chunk = False
         try:

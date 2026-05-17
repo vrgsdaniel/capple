@@ -45,8 +45,16 @@ Use the data only to give short, empathetic, Capple-relevant insights.
 
 def _build_planning_prompt(state: ChatState) -> str:
     state_obj = ensure_chat_state(state)
-    battery = state_obj.battery_context.model_dump() if state_obj.battery_context else {}
-    datetime_ctx = state_obj.datetime_context.model_dump() if state_obj.datetime_context else {}
+    battery = (
+        state_obj.battery_context.model_dump()
+        if hasattr(state_obj.battery_context, "model_dump")
+        else (state_obj.battery_context or {})
+    )
+    datetime_ctx = (
+        state_obj.datetime_context.model_dump()
+        if hasattr(state_obj.datetime_context, "model_dump")
+        else (state_obj.datetime_context or {})
+    )
     weather = {
         key: value.model_dump() if hasattr(value, "model_dump") else value
         for key, value in (state_obj.weather_context or {}).items()
@@ -110,6 +118,10 @@ def system_prompt_node(state: ChatState) -> dict:
     elif state_obj.router_intent == "suggest_plan":
         system_prompt = _build_planning_prompt(state)
     else:
-        ctx = state_obj.battery_context.model_dump() if state_obj.battery_context else None
+        ctx = (
+            state_obj.battery_context.model_dump()
+            if hasattr(state_obj.battery_context, "model_dump")
+            else state_obj.battery_context
+        )
         system_prompt = _build_context_prompt(ctx) if ctx else BASE_SYSTEM_PROMPT
     return {"system_prompt": system_prompt}

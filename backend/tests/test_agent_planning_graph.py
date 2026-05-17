@@ -1,14 +1,5 @@
 from src.agents.nodes.chat import system_prompt_node
 from src.agents.nodes.planner import planner_node
-from src.agents.nodes.router import router_node
-
-
-def test_router_marks_plan_intent():
-    state = {"messages": [{"content": "What should we do tonight in Berlin?"}]}
-    routed = router_node(state)
-
-    assert routed["router_intent"] == "suggest_plan"
-    assert routed["location_consent"] is True
 
 
 def test_planner_ranks_city_events_for_plan_intent():

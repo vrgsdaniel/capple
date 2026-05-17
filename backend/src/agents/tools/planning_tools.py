@@ -4,7 +4,9 @@ from langchain_core.tools import tool
 
 
 def _energy_band(battery_context: dict) -> str:
-    values = [v for v in [battery_context.get("your_avg"), battery_context.get("partner_avg")] if isinstance(v, (int, float))]
+    values = [
+        v for v in [battery_context.get("your_avg"), battery_context.get("partner_avg")] if isinstance(v, (int, float))
+    ]
     if not values:
         return "medium"
     avg_level = sum(values) / len(values)

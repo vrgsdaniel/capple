@@ -4,29 +4,22 @@ This folder contains the LangGraph-based chat orchestration for Capple.
 
 ## Workflow Pattern
 
-- Hybrid routing: deterministic rules first, LLM fallback when uncertain.
-- Dynamic workflow: router creates `workflow_plan` state (workers to run).
-- ReAct workers: context and planner workers use LangChain tools.
+- Static flow: `system_prompt_node` runs first.
+- Single tool agent: `planning_agent` runs second and uses all tools.
 - Streaming output: backend still returns streamed chatbot text only.
 
 ```mermaid
 flowchart TD
-	A[User Message] --> B[Router Agent]
-	B -->|workflow_plan includes context_worker| C[Context ReAct Worker]
-	B -->|workflow_plan includes planner_worker only| D[Planner ReAct Worker]
-	B -->|no workers needed| E[System Prompt Node]
-	C -->|if planner pending| D
-	C -->|otherwise| E
-	D --> E
-	E --> F[LLM Streamed Chat Response]
+	A[User Message] --> B[System Prompt Node]
+	B --> C[Planning Agent create_agent]
+	C --> D[End]
+	D --> E[LLM Streamed Chat Response]
 ```
 
 ## Current Nodes
 
-1. `router_agent`: intent + city + consent detection, builds `workflow_plan`.
-2. `context_worker`: ReAct worker gathering battery/datetime/weather.
-3. `planner_worker`: ReAct worker fetching events and ranking plans.
-4. `system_prompt_node`: composes final system prompt from available context.
+1. `system_prompt_node`: composes the system prompt.
+2. `planning_agent`: minimal `create_agent` invocation with all tools.
 
 ## Tools
 
@@ -41,5 +34,5 @@ Tools are defined under `tools/` and exposed as LangChain tools:
 ## Notes
 
 - The current event adapters are deterministic stubs for Berlin and Madrid.
-- Failure policy in workers: retry once, then continue with partial context and log errors.
+- The planning node does not mutate message history.
 - The architecture diagram is stored as `architecture_b_multi_agent.svg` in this folder.
