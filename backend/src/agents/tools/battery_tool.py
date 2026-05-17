@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
+from typing import Any
 
+from pydantic import BaseModel, Field
+from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
-from src.agents.state import BatteryContext, DateTimeContext
-from src.db.db import get_db
+from src.agents.state import BatteryContext
+
+
+class AgentContext(BaseModel):
+    db_client: Any = Field(exclude=True)
+    household_id: str = ""
+    user_id: str = ""
 
 
 def _compute_trend(daily_avgs: list[float]) -> str:
@@ -23,9 +30,21 @@ def _compute_trend(daily_avgs: list[float]) -> str:
 
 
 @tool("get_battery_context")
-def get_battery_context(household_id: str, user_id: str) -> BatteryContext:
+def get_battery_context(
+    runtime: ToolRuntime[AgentContext] | None = None,
+) -> BatteryContext:
     """Get household social battery context for the last 30 days."""
-    db = get_db()
+    if runtime is None or runtime.context is None:
+        raise ValueError("runtime context is required for get_battery_context")
+
+    ctx = runtime.context
+    db = ctx.db_client
+    household_id = ctx.household_id
+    user_id = ctx.user_id
+
+    if not household_id or not user_id:
+        raise ValueError("runtime context must include household_id and user_id")
+
     now = datetime.now(timezone.utc)
     since = (now - timedelta(days=30)).isoformat()
     end = now.isoformat()
@@ -63,21 +82,4 @@ def get_battery_context(household_id: str, user_id: str) -> BatteryContext:
         partner_trend=_compute_trend(daily_avgs(partner_logs)),
         days_since_your_last_log=days_since_last(your_logs),
         days_since_partner_last_log=days_since_last(partner_logs),
-    )
-
-
-@tool("get_datetime_context")
-def get_datetime_context(city: str) -> DateTimeContext:
-    """Get UTC and city-local datetime context for planning."""
-    timezone_by_city = {
-        "Berlin": "Europe/Berlin",
-        "Madrid": "Europe/Madrid",
-    }
-    tz = timezone_by_city.get(city, "UTC")
-    now_utc = datetime.now(timezone.utc)
-    local_dt = now_utc.astimezone(ZoneInfo(tz))
-    return DateTimeContext(
-        utc_iso=now_utc.isoformat(),
-        local_iso=local_dt.isoformat(),
-        city=city,
     )

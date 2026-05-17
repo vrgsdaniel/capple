@@ -53,8 +53,13 @@ class ChatService:
     def _prepare_state_with_graph(self, initial_state: dict) -> dict:
         """Run graph nodes that enrich state (context + system prompt)."""
         prepared_state = dict(initial_state)
+        run_config = {"db_client": self.db}
         if hasattr(self.graph, "stream"):
-            for output in self.graph.stream(prepared_state):
+            try:
+                stream_iter = self.graph.stream(prepared_state, config=run_config)
+            except TypeError:
+                stream_iter = self.graph.stream(prepared_state)
+            for output in stream_iter:
                 for _, node_output in output.items():
                     if isinstance(node_output, dict):
                         prepared_state.update(node_output)
@@ -62,7 +67,10 @@ class ChatService:
             return prepared_state
 
         if hasattr(self.graph, "invoke"):
-            invoked = self.graph.invoke(prepared_state)
+            try:
+                invoked = self.graph.invoke(prepared_state, config=run_config)
+            except TypeError:
+                invoked = self.graph.invoke(prepared_state)
             if not invoked:
                 return initial_state
             ensure_chat_state(invoked)
