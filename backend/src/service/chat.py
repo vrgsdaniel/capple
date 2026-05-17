@@ -55,10 +55,7 @@ class ChatService:
         prepared_state = dict(initial_state)
         run_config = {"db_client": self.db}
         if hasattr(self.graph, "stream"):
-            try:
-                stream_iter = self.graph.stream(prepared_state, config=run_config)
-            except TypeError:
-                stream_iter = self.graph.stream(prepared_state)
+            stream_iter = self.graph.stream(prepared_state, config=run_config)
             for output in stream_iter:
                 for _, node_output in output.items():
                     if isinstance(node_output, dict):
@@ -67,10 +64,7 @@ class ChatService:
             return prepared_state
 
         if hasattr(self.graph, "invoke"):
-            try:
-                invoked = self.graph.invoke(prepared_state, config=run_config)
-            except TypeError:
-                invoked = self.graph.invoke(prepared_state)
+            invoked = self.graph.invoke(prepared_state, config=run_config)
             if not invoked:
                 return initial_state
             ensure_chat_state(invoked)

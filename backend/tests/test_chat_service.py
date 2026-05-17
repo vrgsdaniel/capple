@@ -13,9 +13,11 @@ class FakeGraph:
     def __init__(self, prepared_state=None):
         self.prepared_state = prepared_state or {}
         self.last_state = None
+        self.last_config = None
 
-    def invoke(self, state):
+    def invoke(self, state, config=None):
         self.last_state = state
+        self.last_config = config
         return {**state, **self.prepared_state}
 
 
@@ -74,6 +76,8 @@ class TestStreamResponse:
         assert fake_graph.last_state is not None
         assert fake_graph.last_state["user_id"] == "user-111"
         assert fake_graph.last_state["household_id"] == "hh-001"
+        assert fake_graph.last_config is not None
+        assert fake_graph.last_config.get("db_client") is mock_db
 
     def test_ignores_empty_stream_chunks(self, mock_db):
         fake_chatbot = FakeChatbot(chunks=["", "ok"])

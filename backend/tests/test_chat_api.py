@@ -14,12 +14,16 @@ FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Home", "invite_code": "abc123", "role
 
 
 class FakeGraph:
-    def invoke(self, state):
+    def invoke(self, state, config=None):
+        assert isinstance(config, dict)
+        assert "db_client" in config
         return {**state, "system_prompt": "prep prompt", "battery_context": {"total_entries": 2}}
 
 
 class FakeGraphFailBeforeFirstChunk:
-    def invoke(self, _state):
+    def invoke(self, _state, config=None):
+        assert isinstance(config, dict)
+        assert "db_client" in config
         raise ValueError("{'error': 'missing llm env vars'}")
 
 

@@ -1,19 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
-from typing import Any
-
-from pydantic import BaseModel, Field
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
+from src.agents.graph import AgentContext
 from src.agents.state import BatteryContext
-
-
-class AgentContext(BaseModel):
-    db_client: Any = Field(exclude=True)
-    household_id: str = ""
-    user_id: str = ""
 
 
 def _compute_trend(daily_avgs: list[float]) -> str:
