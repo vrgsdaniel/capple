@@ -28,10 +28,10 @@ def test_fetch_weather_context_returns_parsed_payload(monkeypatch):
 
     result = weather_module.fetch_weather_context_for_city("Berlin", 52.52, 13.405)
 
-    assert result["city"] == "Berlin"
-    assert result["temperature"] == 21.4
-    assert result["precipitation_probability"] == 25
-    assert result["weather_label"] == "partly cloudy"
+    assert result.city == "Berlin"
+    assert result.temperature == 21.4
+    assert result.precipitation_probability == 25
+    assert result.weather_label == "partly cloudy"
 
 
 def test_fetch_weather_context_returns_fallback_on_network_error(monkeypatch):
@@ -42,9 +42,7 @@ def test_fetch_weather_context_returns_fallback_on_network_error(monkeypatch):
 
     result = weather_module.fetch_weather_context_for_city("Madrid", 40.4168, -3.7038)
 
-    assert result == {
-        "city": "Madrid",
-        "temperature": None,
-        "precipitation_probability": None,
-        "weather_label": "unavailable",
-    }
+    assert result.city == "Madrid"
+    assert result.temperature is None
+    assert result.precipitation_probability is None
+    assert result.weather_label == "unavailable"

@@ -12,5 +12,5 @@ def test_get_city_events_returns_supported_and_empty_for_unknown_city():
     assert len(result["Berlin"]) == 3
     assert len(result["Madrid"]) == 3
     assert result["Paris"] == []
-    assert all(event["city"] == "Berlin" for event in result["Berlin"])
-    assert all(event["city"] == "Madrid" for event in result["Madrid"])
+    assert all(event.city == "Berlin" for event in result["Berlin"])
+    assert all(event.city == "Madrid" for event in result["Madrid"])

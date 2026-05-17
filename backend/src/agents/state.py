@@ -30,20 +30,20 @@ class WeatherContext(BaseModel):
 
 
 class CityEvent(BaseModel):
-    city: str
-    title: str
-    category: str
-    start_iso: str
-    source: str
+    city: str = ""
+    title: str = ""
+    category: str = ""
+    start_iso: str = ""
+    source: str = ""
 
 
 class SuggestedPlan(BaseModel):
-    title: str
-    city: str
-    rationale: str
-    score: int
-    recommended_for: str
-    best_time: str
+    title: str = ""
+    city: str = ""
+    rationale: str = ""
+    score: int = 0
+    recommended_for: str = "couple"
+    best_time: str = ""
 
 
 class ChatState(BaseModel):
@@ -57,11 +57,11 @@ class ChatState(BaseModel):
     selected_city: str | None = None
     workflow_plan: list[str] = Field(default_factory=list)
     missing_requirements: list[str] = Field(default_factory=list)
-    battery_context: BatteryContext | dict[str, Any] | None = None
-    datetime_context: DateTimeContext | dict[str, Any] | None = None
-    weather_context: dict[str, WeatherContext | dict[str, Any]] = Field(default_factory=dict)
-    city_events: dict[str, list[CityEvent | dict[str, Any]]] = Field(default_factory=dict)
-    ranked_plans: list[SuggestedPlan | dict[str, Any]] = Field(default_factory=list)
+    battery_context: BatteryContext | None = None
+    datetime_context: DateTimeContext | None = None
+    weather_context: dict[str, WeatherContext] = Field(default_factory=dict)
+    city_events: dict[str, list[CityEvent]] = Field(default_factory=dict)
+    ranked_plans: list[SuggestedPlan] = Field(default_factory=list)
     chatbot: Any | None = None
     system_prompt: str = ""
 

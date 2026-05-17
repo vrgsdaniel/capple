@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
+from src.agents.state import SuggestedPlan
+
 
 def _energy_band(battery_context: dict) -> str:
     values = [
@@ -22,10 +24,10 @@ def rank_city_plans(
     battery_context: dict,
     weather_context: dict,
     city_events: dict,
-) -> list[dict]:
+) -> list[SuggestedPlan]:
     """Rank city plans deterministically using battery, weather and events context."""
     band = _energy_band(battery_context or {})
-    plans: list[dict] = []
+    plans: list[SuggestedPlan] = []
 
     for _, events in (city_events or {}).items():
         for event in events:
@@ -46,17 +48,17 @@ def rank_city_plans(
                 score -= 20
 
             plans.append(
-                {
-                    "title": event.get("title", "Suggested local activity"),
-                    "city": city,
-                    "rationale": (
+                SuggestedPlan(
+                    title=event.get("title", "Suggested local activity"),
+                    city=city,
+                    rationale=(
                         f"Matches {band} social energy, considers {city} weather ({weather_label}), "
                         "and aligns with local event availability."
                     ),
-                    "score": score,
-                    "recommended_for": "couple",
-                    "best_time": event.get("start_iso", ""),
-                }
+                    score=score,
+                    recommended_for="couple",
+                    best_time=event.get("start_iso", ""),
+                )
             )
 
-    return sorted(plans, key=lambda item: item["score"], reverse=True)[:3]
+    return sorted(plans, key=lambda item: item.score, reverse=True)[:3]

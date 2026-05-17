@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from langchain_core.tools import tool
 
+from src.agents.state import BatteryContext, DateTimeContext
 from src.db.db import get_db
 
 
@@ -22,7 +23,7 @@ def _compute_trend(daily_avgs: list[float]) -> str:
 
 
 @tool("get_battery_context")
-def get_battery_context(household_id: str, user_id: str) -> dict:
+def get_battery_context(household_id: str, user_id: str) -> BatteryContext:
     """Get household social battery context for the last 30 days."""
     db = get_db()
     now = datetime.now(timezone.utc)
@@ -52,21 +53,21 @@ def get_battery_context(household_id: str, user_id: str) -> dict:
             by_day.setdefault(day, []).append(entry["level"])
         return [sum(values) / len(values) for values in by_day.values()]
 
-    return {
-        "total_entries": len(logs),
-        "your_entries": len(your_logs),
-        "partner_entries": len(partner_logs),
-        "your_avg": avg(your_logs),
-        "partner_avg": avg(partner_logs),
-        "your_trend": _compute_trend(daily_avgs(your_logs)),
-        "partner_trend": _compute_trend(daily_avgs(partner_logs)),
-        "days_since_your_last_log": days_since_last(your_logs),
-        "days_since_partner_last_log": days_since_last(partner_logs),
-    }
+    return BatteryContext(
+        total_entries=len(logs),
+        your_entries=len(your_logs),
+        partner_entries=len(partner_logs),
+        your_avg=avg(your_logs),
+        partner_avg=avg(partner_logs),
+        your_trend=_compute_trend(daily_avgs(your_logs)),
+        partner_trend=_compute_trend(daily_avgs(partner_logs)),
+        days_since_your_last_log=days_since_last(your_logs),
+        days_since_partner_last_log=days_since_last(partner_logs),
+    )
 
 
 @tool("get_datetime_context")
-def get_datetime_context(city: str) -> dict:
+def get_datetime_context(city: str) -> DateTimeContext:
     """Get UTC and city-local datetime context for planning."""
     timezone_by_city = {
         "Berlin": "Europe/Berlin",
@@ -75,8 +76,8 @@ def get_datetime_context(city: str) -> dict:
     tz = timezone_by_city.get(city, "UTC")
     now_utc = datetime.now(timezone.utc)
     local_dt = now_utc.astimezone(ZoneInfo(tz))
-    return {
-        "utc_iso": now_utc.isoformat(),
-        "local_iso": local_dt.isoformat(),
-        "city": city,
-    }
+    return DateTimeContext(
+        utc_iso=now_utc.isoformat(),
+        local_iso=local_dt.isoformat(),
+        city=city,
+    )

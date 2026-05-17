@@ -16,54 +16,54 @@ def _next_day_at(now: datetime, day_offset: int, hour: int) -> str:
 def _berlin_events(now_utc: datetime) -> list[CityEvent]:
     berlin_now = now_utc.astimezone(ZoneInfo("Europe/Berlin"))
     return [
-        {
-            "city": "Berlin",
-            "title": "Tempelhofer Feld sunset walk",
-            "category": "outdoor",
-            "start_iso": _next_day_at(berlin_now, 0, 19),
-            "source": "local_adapter_berlin",
-        },
-        {
-            "city": "Berlin",
-            "title": "Museum Island late opening",
-            "category": "culture",
-            "start_iso": _next_day_at(berlin_now, 1, 18),
-            "source": "local_adapter_berlin",
-        },
-        {
-            "city": "Berlin",
-            "title": "Neighborhood coffee and board games",
-            "category": "low_energy",
-            "start_iso": _next_day_at(berlin_now, 1, 16),
-            "source": "local_adapter_berlin",
-        },
+        CityEvent(
+            city="Berlin",
+            title="Tempelhofer Feld sunset walk",
+            category="outdoor",
+            start_iso=_next_day_at(berlin_now, 0, 19),
+            source="local_adapter_berlin",
+        ),
+        CityEvent(
+            city="Berlin",
+            title="Museum Island late opening",
+            category="culture",
+            start_iso=_next_day_at(berlin_now, 1, 18),
+            source="local_adapter_berlin",
+        ),
+        CityEvent(
+            city="Berlin",
+            title="Neighborhood coffee and board games",
+            category="low_energy",
+            start_iso=_next_day_at(berlin_now, 1, 16),
+            source="local_adapter_berlin",
+        ),
     ]
 
 
 def _madrid_events(now_utc: datetime) -> list[CityEvent]:
     madrid_now = now_utc.astimezone(ZoneInfo("Europe/Madrid"))
     return [
-        {
-            "city": "Madrid",
-            "title": "Retiro Park morning stroll",
-            "category": "outdoor",
-            "start_iso": _next_day_at(madrid_now, 0, 10),
-            "source": "local_adapter_madrid",
-        },
-        {
-            "city": "Madrid",
-            "title": "La Latina tapas route",
-            "category": "social_food",
-            "start_iso": _next_day_at(madrid_now, 0, 20),
-            "source": "local_adapter_madrid",
-        },
-        {
-            "city": "Madrid",
-            "title": "Matinee cinema session",
-            "category": "low_energy",
-            "start_iso": _next_day_at(madrid_now, 1, 17),
-            "source": "local_adapter_madrid",
-        },
+        CityEvent(
+            city="Madrid",
+            title="Retiro Park morning stroll",
+            category="outdoor",
+            start_iso=_next_day_at(madrid_now, 0, 10),
+            source="local_adapter_madrid",
+        ),
+        CityEvent(
+            city="Madrid",
+            title="La Latina tapas route",
+            category="social_food",
+            start_iso=_next_day_at(madrid_now, 0, 20),
+            source="local_adapter_madrid",
+        ),
+        CityEvent(
+            city="Madrid",
+            title="Matinee cinema session",
+            category="low_energy",
+            start_iso=_next_day_at(madrid_now, 1, 17),
+            source="local_adapter_madrid",
+        ),
     ]
 
 
@@ -89,6 +89,6 @@ def get_city_events(cities: list[str], now_utc: datetime | None = None) -> dict[
 
 
 @tool("get_city_events")
-def get_city_events_tool(cities: list[str]) -> dict:
+def get_city_events_tool(cities: list[str]) -> dict[str, list[CityEvent]]:
     """Get event candidates for supported cities from the city adapter registry."""
     return get_city_events(cities)

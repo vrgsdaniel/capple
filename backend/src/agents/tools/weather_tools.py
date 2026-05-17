@@ -33,12 +33,12 @@ _WEATHER_CODE_LABELS = {
 
 
 def _build_fallback(city: str) -> WeatherContext:
-    return {
-        "city": city,
-        "temperature": None,
-        "precipitation_probability": None,
-        "weather_label": "unavailable",
-    }
+    return WeatherContext(
+        city=city,
+        temperature=None,
+        precipitation_probability=None,
+        weather_label="unavailable",
+    )
 
 
 def fetch_weather_context_for_city(city: str, latitude: float, longitude: float) -> WeatherContext:
@@ -79,17 +79,17 @@ def fetch_weather_context_for_city(city: str, latitude: float, longitude: float)
     temperature = current.get("temperature_2m")
     precipitation_probability = current.get("precipitation_probability")
 
-    return {
-        "city": city,
-        "temperature": float(temperature) if isinstance(temperature, (int, float)) else None,
-        "precipitation_probability": (
+    return WeatherContext(
+        city=city,
+        temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
+        precipitation_probability=(
             int(precipitation_probability) if isinstance(precipitation_probability, (int, float)) else None
         ),
-        "weather_label": weather_label,
-    }
+        weather_label=weather_label,
+    )
 
 
 @tool("fetch_weather_context")
-def fetch_weather_context(city: str, latitude: float, longitude: float) -> dict:
+def fetch_weather_context(city: str, latitude: float, longitude: float) -> WeatherContext:
     """Fetch weather context for a city and coordinates."""
     return fetch_weather_context_for_city(city, latitude, longitude)

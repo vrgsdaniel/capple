@@ -23,16 +23,16 @@ def test_get_battery_context_builds_expected_summary(monkeypatch):
 
     result = context_module.get_battery_context.invoke({"household_id": "hh-1", "user_id": "u1"})
 
-    assert result["total_entries"] == 3
-    assert result["your_entries"] == 2
-    assert result["partner_entries"] == 1
-    assert result["your_avg"] == 50.0
-    assert result["partner_avg"] == 70.0
+    assert result.total_entries == 3
+    assert result.your_entries == 2
+    assert result.partner_entries == 1
+    assert result.your_avg == 50.0
+    assert result.partner_avg == 70.0
 
 
 def test_get_datetime_context_includes_city_and_iso_timestamps():
     result = context_module.get_datetime_context.invoke({"city": "Berlin"})
 
-    assert result["city"] == "Berlin"
-    assert "T" in result["utc_iso"]
-    assert "T" in result["local_iso"]
+    assert result.city == "Berlin"
+    assert "T" in result.utc_iso
+    assert "T" in result.local_iso

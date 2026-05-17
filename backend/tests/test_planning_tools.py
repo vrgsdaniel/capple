@@ -27,5 +27,5 @@ def test_rank_city_plans_orders_highest_scores_first_and_limits_to_three():
     )
 
     assert len(ranked) == 3
-    assert ranked[0]["score"] >= ranked[1]["score"] >= ranked[2]["score"]
-    assert ranked[0]["city"] == "Berlin"
+    assert ranked[0].score >= ranked[1].score >= ranked[2].score
+    assert ranked[0].city == "Berlin"
