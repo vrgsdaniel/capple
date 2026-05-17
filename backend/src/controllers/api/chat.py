@@ -83,12 +83,15 @@ async def chat(
         return
 
     try:
+        event_id = 1
         if first_content is not None:
-            yield ServerSentEvent(data=first_content, event="message")
+            yield ServerSentEvent(data=first_content, event="message", id=str(event_id))
+            event_id += 1
 
         # Stream response content from the chat service
         for content in stream_iter:
-            yield ServerSentEvent(data=content, event="message")
+            yield ServerSentEvent(data=content, event="message", id=str(event_id))
+            event_id += 1
 
         yield ServerSentEvent(data="[DONE]", event="done")
         log.info(f"Chat stream completed for user {user_id} in household {household_id}")
