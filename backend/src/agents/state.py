@@ -53,7 +53,8 @@ class ChatState(BaseModel):
     household_id: str = ""
     user_id: str = ""
     router_intent: str = "general_chat"
-    location_consent: bool = False
+    intent_confidence: float = 0.0
+    parser_retry_needed: bool = False
     selected_city: str | None = None
     workflow_plan: list[str] = Field(default_factory=list)
     missing_requirements: list[str] = Field(default_factory=list)

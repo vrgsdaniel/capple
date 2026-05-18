@@ -1,4 +1,12 @@
+from typing import Literal
+
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
+
 from src.agents.state import ChatState, ensure_chat_state
+from src.settings import get_llm_settings
+
+PARSE_USER_INPUT_NODE = "parse_user_input"
 
 BASE_SYSTEM_PROMPT = """
     You are Capple, the assistant for a couples' household app.
@@ -25,6 +33,93 @@ PLANNING_BEHAVIOR = """
     - local city events for Berlin and Madrid
     Then provide a ranked, practical plan. Prefer 2-3 options with brief reasons.
 """
+
+INTENT_CONFIDENCE_THRESHOLD = get_llm_settings().intent_confidence_threshold
+
+
+INTENT_ENUM = ("general_chat", "battery_levels", "suggest_plan", "app_help")
+
+
+class ParsedUserInput(BaseModel):
+    intent: Literal["general_chat", "battery_levels", "suggest_plan", "app_help"] = "app_help"
+    city: str | None = None
+    confidence: float = 0.0
+    missing_requirements: list[str] = Field(default_factory=list)
+
+
+PARSER_SYSTEM_PROMPT = """
+You extract structured intent data for the Capple assistant.
+
+Rules:
+- Valid intents are exactly: general_chat, battery_levels, suggest_plan, app_help.
+- Return app_help when the user asks about product/app usage, onboarding, settings, or troubleshooting.
+- Return battery_levels for questions about social battery, energy level, or user/partner battery trends.
+- Return suggest_plan when user asks what to do, suggestions, activities, plans, or events.
+- Return general_chat for in-scope small talk that is not app-specific and not planning/battery-level focused.
+- Confidence must be between 0 and 1.
+- Extract city if explicitly provided by the user; otherwise null.
+- missing_requirements may only include "city".
+- For suggest_plan without city, include "city" in missing_requirements.
+""".strip()
+
+
+def _latest_user_text(state_obj: ChatState) -> str:
+    for message in reversed(state_obj.messages or []):
+        msg_type = getattr(message, "type", "")
+        if msg_type == "human":
+            content = getattr(message, "content", "")
+            return str(content) if content is not None else ""
+        if isinstance(message, dict) and message.get("role") == "user":
+            return str(message.get("content", ""))
+    return ""
+
+
+def _parse_with_llm(state_obj: ChatState, user_text: str) -> ParsedUserInput:
+    chatbot = state_obj.chatbot
+    if not chatbot:
+        return ParsedUserInput(intent="app_help", city=None, confidence=0.0, missing_requirements=[])
+
+    structured_llm = chatbot.llm.with_structured_output(ParsedUserInput)
+    parsed = structured_llm.invoke(
+        [
+            SystemMessage(content=PARSER_SYSTEM_PROMPT),
+            HumanMessage(content=user_text),
+        ]
+    )
+
+    if isinstance(parsed, ParsedUserInput):
+        return parsed
+    return ParsedUserInput.model_validate(parsed)
+
+
+def parse_user_input_node(state: ChatState) -> dict:
+    """Use LLM structured output to infer intent/city and missing requirements."""
+    state_obj = ensure_chat_state(state)
+    user_text = _latest_user_text(state_obj)
+
+    try:
+        parsed = _parse_with_llm(state_obj, user_text)
+        parser_retry_needed = False
+    except Exception:
+        parsed = ParsedUserInput(intent="app_help", city=None, confidence=0.0, missing_requirements=[])
+        parser_retry_needed = True
+
+    router_intent = parsed.intent if parsed.intent in INTENT_ENUM else "app_help"
+    selected_city = (parsed.city or "").strip() or state_obj.selected_city
+
+    missing_requirements = [item for item in parsed.missing_requirements if item == "city"]
+    if router_intent == "suggest_plan" and not selected_city and "city" not in missing_requirements:
+        missing_requirements.append("city")
+
+    confidence = max(0.0, min(1.0, float(parsed.confidence)))
+
+    return {
+        "router_intent": router_intent,
+        "intent_confidence": confidence,
+        "parser_retry_needed": parser_retry_needed,
+        "selected_city": selected_city,
+        "missing_requirements": missing_requirements,
+    }
 
 
 def _build_context_prompt(ctx: dict) -> str:
@@ -93,26 +188,30 @@ def _build_planning_prompt(state: ChatState) -> str:
 
     Top ranked suggestions:
     {chr(10).join(plan_lines) if plan_lines else 'No ranked plans available.'}
-
-    If location consent is denied, ask for consent or ask the user to provide a city directly.
     """
 
 
 def system_prompt_node(state: ChatState) -> dict:
     """Build system prompt from routed context and planning data."""
     state_obj = ensure_chat_state(state)
-    if state_obj.missing_requirements:
+    if state_obj.parser_retry_needed:
+        system_prompt = (
+            f"{BASE_SYSTEM_PROMPT}\n\n"
+            "We could not safely interpret the request right now. "
+            "Apologize briefly and ask the user to retry their last message."
+        )
+    elif state_obj.intent_confidence < INTENT_CONFIDENCE_THRESHOLD:
+        system_prompt = (
+            f"{BASE_SYSTEM_PROMPT}\n\n"
+            "The user intent is ambiguous. Ask one concise clarifying question "
+            "to determine whether they want battery insights, app help, or plan suggestions."
+        )
+    elif state_obj.missing_requirements:
         missing = ", ".join(state_obj.missing_requirements)
         system_prompt = (
             f"{BASE_SYSTEM_PROMPT}\n\n"
             f"Planning is missing required inputs: {missing}. "
-            "Ask the user for city or location consent before suggesting plans."
-        )
-    elif not state_obj.location_consent and not state_obj.selected_city:
-        system_prompt = (
-            f"{BASE_SYSTEM_PROMPT}\n\n"
-            "The user has not granted location consent for place-based planning. "
-            "Ask for location consent or ask the user to provide their city."
+            "Ask the user for their city before suggesting plans."
         )
     elif state_obj.router_intent == "suggest_plan":
         system_prompt = _build_planning_prompt(state)
