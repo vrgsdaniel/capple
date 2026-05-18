@@ -37,7 +37,17 @@ docker-down:
 # Run: make lint
 .PHONY: lint
 lint:
+	$(MAKE) be-lint
+
+# Run: make be-lint
+.PHONY: be-lint
+be-lint:
 	cd backend && uv run ruff check .
+
+# Run: make be-test
+.PHONY: be-test
+be-test:
+	cd backend && uv run pytest
 
 # Run: make db-push
 .PHONY: db-push

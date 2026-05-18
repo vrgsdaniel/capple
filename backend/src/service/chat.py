@@ -2,7 +2,7 @@ from json import JSONDecodeError
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages import SystemMessage
 from src.agents.llm.chatbot import Chatbot
-from src.agents.state import build_default_chat_state, ensure_chat_state
+from src.agents.state import build_default_chat_state_model, ensure_chat_state
 from src.db.db import DB
 from src.utils.logger import logger as log
 
@@ -39,13 +39,14 @@ class ChatService:
         messages = lc_history + [HumanMessage(content=message)]
 
         # Initialize state with defaults, then override request-specific fields.
-        state = {
-            **build_default_chat_state(),
-            "messages": messages,
-            "household_id": str(self.household_id),
-            "user_id": self.user_id,
-            "chatbot": self.chatbot,
-        }
+        base_state = build_default_chat_state_model()
+        base_state.messages = messages
+        base_state.household_id = str(self.household_id)
+        base_state.user_id = self.user_id
+        base_state.chatbot = self.chatbot
+        state = base_state.model_dump()
+        state["messages"] = messages
+        state["chatbot"] = self.chatbot
 
         ensure_chat_state(state)
         return state

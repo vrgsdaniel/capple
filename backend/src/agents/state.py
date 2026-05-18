@@ -66,12 +66,9 @@ class ChatState(BaseModel):
     system_prompt: str = ""
 
 
-def build_default_chat_state() -> dict:
-    """Return a default-initialized chat state payload.
-
-    Callers can override required IDs/messages while reusing consistent defaults.
-    """
-    return ChatState().model_dump()
+def build_default_chat_state_model() -> ChatState:
+    """Return a default-initialized ChatState model."""
+    return ChatState()
 
 
 def ensure_chat_state(state: ChatState | dict) -> ChatState:

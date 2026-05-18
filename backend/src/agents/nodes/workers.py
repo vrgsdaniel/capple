@@ -38,14 +38,12 @@ def planning_agent_node(state: ChatState, config: RunnableConfig | None = None) 
 
     system_prompt = state_obj.system_prompt or "You are a helpful assistant"
     agent = _build_tool_agent(state_obj.chatbot.llm, system_prompt)
-    cfg = config or {}
-    db_client = cfg.get("db_client")
 
     agent.invoke(
         {"messages": state_obj.messages},
         {
             "context": {
-                "db_client": db_client,
+                "db_client": config.get("db_client"),
                 "household_id": state_obj.household_id,
                 "user_id": state_obj.user_id,
             }
