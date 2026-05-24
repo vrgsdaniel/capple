@@ -32,6 +32,20 @@ PLANNING_BEHAVIOR = """
     Then provide a ranked, practical plan. Prefer 2-3 options with brief reasons.
 """
 
+BATTERY_BEHAVIOR = """
+    When the user asks about battery levels, trends, or energy:
+    - Use the battery context tool before answering.
+    - Ground the response in available battery metrics and trends.
+    - If data is missing or insufficient, say so clearly and suggest logging new entries.
+    - Keep the response short, empathetic, and practical.
+"""
+
+APP_HELP_BEHAVIOR = """
+    The user is asking about app usage or troubleshooting.
+    Explain Capple features and steps clearly.
+    If details are missing, ask one concise follow-up question.
+"""
+
 
 def _build_context_prompt(ctx: dict) -> str:
     return f"""
@@ -49,56 +63,22 @@ def _build_context_prompt(ctx: dict) -> str:
 """
 
 
-def _build_planning_prompt(state: ChatState) -> str:
-    state_obj = ensure_chat_state(state)
-    battery = (
-        state_obj.battery_context.model_dump()
-        if hasattr(state_obj.battery_context, "model_dump")
-        else (state_obj.battery_context or {})
-    )
-    datetime_ctx = (
-        state_obj.datetime_context.model_dump()
-        if hasattr(state_obj.datetime_context, "model_dump")
-        else (state_obj.datetime_context or {})
-    )
-    weather = {
-        key: value.model_dump() if hasattr(value, "model_dump") else value
-        for key, value in (state_obj.weather_context or {}).items()
-    }
-    ranked_plans = [plan.model_dump() if hasattr(plan, "model_dump") else plan for plan in state_obj.ranked_plans]
-    city_events = {
-        key: [item.model_dump() if hasattr(item, "model_dump") else item for item in value]
-        for key, value in (state_obj.city_events or {}).items()
-    }
+def _build_battery_prompt() -> str:
+    return f"""
+    {BATTERY_BEHAVIOR}
+    """
 
-    def weather_line(city: str) -> str:
-        row = weather.get(city) or {}
-        return (
-            f"{city}: {row.get('weather_label', 'unavailable')}, "
-            f"{row.get('temperature', 'n/a')}C, precip {row.get('precipitation_probability', 'n/a')}%"
-        )
 
-    plan_lines = []
-    for idx, plan in enumerate(ranked_plans, start=1):
-        plan_lines.append(f"{idx}. {plan['title']} ({plan['city']}) - score {plan['score']} - {plan['rationale']}")
-
-    selected_city = state_obj.selected_city or "unknown"
-    event_count = len(city_events.get(selected_city, [])) if selected_city in city_events else 0
-
+def _build_app_help_prompt() -> str:
     return f"""
     {BASE_SYSTEM_PROMPT}
-    {PLANNING_BEHAVIOR}
-    Current context:
-    - Your avg battery: {battery.get('your_avg', 'no data')}
-    - Partner avg battery: {battery.get('partner_avg', 'no data')}
-    - UTC now: {datetime_ctx.get('utc_iso', 'n/a')}
-    - Selected city: {selected_city}
-    - Local time: {datetime_ctx.get('local_iso', 'n/a')}
-    - Weather: {weather_line(selected_city)}
-    - Event options loaded in selected city: {event_count}
+    {APP_HELP_BEHAVIOR}
+    """
 
-    Top ranked suggestions:
-    {chr(10).join(plan_lines) if plan_lines else 'No ranked plans available.'}
+
+def _build_planning_prompt() -> str:
+    return f"""
+    {PLANNING_BEHAVIOR}
     """
 
 
@@ -122,12 +102,18 @@ def system_prompt_node(state: ChatState) -> dict:
             f"Planning is missing required inputs: {missing}. Ask the user for their city before suggesting plans."
         )
     elif state_obj.router_intent == "suggest_plan":
-        system_prompt = _build_planning_prompt(state)
-    else:
+        system_prompt = _build_planning_prompt()
+    elif state_obj.router_intent == "battery_levels":
+        system_prompt = _build_battery_prompt()
+    elif state_obj.router_intent == "app_help":
+        system_prompt = _build_app_help_prompt()
+    elif state_obj.router_intent == "general_chat":
         ctx = (
             state_obj.battery_context.model_dump()
             if hasattr(state_obj.battery_context, "model_dump")
             else state_obj.battery_context
         )
         system_prompt = _build_context_prompt(ctx) if ctx else BASE_SYSTEM_PROMPT
+    else:
+        system_prompt = BASE_SYSTEM_PROMPT
     return {"system_prompt": system_prompt}
