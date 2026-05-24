@@ -1,7 +1,7 @@
 from langchain_core.messages import HumanMessage
 from pydantic import BaseModel
 
-from src.agents.nodes.chat import system_prompt_node
+from src.agents.nodes.system_prompt import system_prompt_node
 
 
 class _FakeStructuredLLM:

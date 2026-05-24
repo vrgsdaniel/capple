@@ -1,7 +1,7 @@
 from langchain_core.messages import HumanMessage
 from unittest.mock import MagicMock, patch
 
-from src.agents.nodes.workers import planning_agent_node
+from src.agents.nodes.agent import planning_agent_node
 
 # Light test to verify that the planning agent node correctly builds the GraphContext from the state and invokes the agent.
 
@@ -21,8 +21,8 @@ def test_planning_agent_node_builds_context_from_state():
         "system_prompt": "Custom prompt",
     }
 
-    with patch("src.agents.nodes.workers.GraphContext") as MockCtx, patch(
-        "src.agents.nodes.workers.create_agent", return_value=mock_agent
+    with patch("src.agents.nodes.agent.GraphContext") as MockCtx, patch(
+        "src.agents.nodes.agent.create_agent", return_value=mock_agent
     ) as mock_build:
 
         mock_agent = MagicMock()
