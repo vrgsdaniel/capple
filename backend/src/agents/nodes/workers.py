@@ -9,24 +9,9 @@ from src.agents.tools.battery_tool import create_battery_context_tool
 from src.agents.tools.date_tool import create_datetime_tool
 from src.agents.tools.weather_tool import create_weather_tool
 from src.agents.tools.events_tools import create_city_events_tool
-from src.agents.tools.planning_tools import create_city_plans_tool
+from src.agents.tools.planning_tools import create_plan_ranker_tool
 
 PLANNING_AGENT_NODE = "planning_agent"
-
-
-def _build_tool_agent(context: GraphContext, model, system_prompt: str):
-
-    return create_agent(
-        model=model,
-        tools=[
-            create_battery_context_tool(context=context),
-            create_datetime_tool(context=context),
-            create_weather_tool(context=context),
-            create_city_events_tool(context=context),
-            create_city_plans_tool(context=context),
-        ],
-        system_prompt=system_prompt,
-    )
 
 
 def planning_agent_node(state: ChatState, runtime: Runtime[GraphContext]) -> dict:
@@ -36,13 +21,23 @@ def planning_agent_node(state: ChatState, runtime: Runtime[GraphContext]) -> dic
         return {}
 
     ctx = GraphContext(
-        runtime.context.db_client,
-        state_obj.household_id,
-        state_obj.user_id,
+        db_client=runtime.context.db_client,
+        household_id=state_obj.household_id,
+        user_id=state_obj.user_id,
     )
 
     system_prompt = state_obj.system_prompt or "You are a helpful assistant"
-    agent = _build_tool_agent(ctx, state_obj.chatbot.llm, system_prompt)
+    agent = create_agent(
+        model=state_obj.chatbot.llm,
+        tools=[
+            create_battery_context_tool(context=ctx),
+            create_datetime_tool(context=ctx),
+            create_weather_tool(context=ctx),
+            create_city_events_tool(context=ctx),
+            create_plan_ranker_tool(context=ctx),
+        ],
+        system_prompt=system_prompt,
+    )
 
     agent.invoke(
         {"messages": state_obj.messages},

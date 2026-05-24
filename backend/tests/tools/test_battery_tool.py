@@ -1,4 +1,4 @@
-from backend.src.agents.graph import GraphContext
+from src.agents.graph import GraphContext
 from src.agents.tools import battery_tool
 
 

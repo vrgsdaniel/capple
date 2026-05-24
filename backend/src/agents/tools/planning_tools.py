@@ -65,7 +65,7 @@ def create_city_plans_tool(
 
 
 def create_plan_ranker_tool(context: GraphContext) -> tool:
-    @tool("get_rank_city_plans")
+    @tool("get_rank_city_plans_tool")
     def get_rank_city_plans_tool(
         battery_context: dict,
         weather_context: dict,
