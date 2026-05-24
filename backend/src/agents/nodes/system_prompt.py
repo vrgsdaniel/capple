@@ -3,7 +3,6 @@ from src.agents.state import ChatState, ensure_chat_state
 
 INTENT_CONFIDENCE_THRESHOLD = get_llm_settings().intent_confidence_threshold
 
-PARSE_USER_INPUT_NODE = "parse_user_input"
 SYSTEM_PROMPT_NODE = "system_prompt"
 
 BASE_SYSTEM_PROMPT = """

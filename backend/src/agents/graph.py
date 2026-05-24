@@ -16,11 +16,10 @@ def build_graph():
     """Build a minimal graph: system prompt, then planning agent, then end."""
     from src.agents.nodes.agent import planning_agent_node, PLANNING_AGENT_NODE
     from src.agents.nodes.system_prompt import (
-        parse_user_input_node,
         system_prompt_node,
-        PARSE_USER_INPUT_NODE,
         SYSTEM_PROMPT_NODE,
     )
+    from src.agents.nodes.input_router import PARSE_USER_INPUT_NODE, parse_user_input_node
 
     graph = StateGraph(ChatState)
 

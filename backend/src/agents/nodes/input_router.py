@@ -8,6 +8,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from src.utils.logger import logger as log
 from src.settings import get_llm_settings
 
+PARSE_USER_INPUT_NODE = "parse_user_input"
+
 PARSER_SYSTEM_PROMPT = """
 You extract structured intent data for the Capple assistant.
 

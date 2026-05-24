@@ -16,19 +16,19 @@ PLANNING_AGENT_NODE = "planning_agent"
 
 def planning_agent_node(state: ChatState, runtime: Runtime[GraphContext]) -> dict:
     """Minimal planning agent invocation using create_agent and existing messages."""
-    state_obj = ensure_chat_state(state)
-    if not state_obj.chatbot or not state_obj.messages:
+    state = ensure_chat_state(state)
+    if not state.chatbot or not state.messages:
         return {}
 
     ctx = GraphContext(
         db_client=runtime.context.db_client,
-        household_id=state_obj.household_id,
-        user_id=state_obj.user_id,
+        household_id=state.household_id,
+        user_id=state.user_id,
     )
 
-    system_prompt = state_obj.system_prompt or "You are a helpful assistant"
+    system_prompt = state.system_prompt or "You are a helpful assistant"
     agent = create_agent(
-        model=state_obj.chatbot.llm,
+        model=state.chatbot.llm,
         tools=[
             create_battery_context_tool(context=ctx),
             create_datetime_tool(context=ctx),
@@ -40,6 +40,6 @@ def planning_agent_node(state: ChatState, runtime: Runtime[GraphContext]) -> dic
     )
 
     agent.invoke(
-        {"messages": state_obj.messages},
+        {"messages": state.messages},
     )
     return {}
