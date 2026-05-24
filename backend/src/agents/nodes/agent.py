@@ -10,6 +10,7 @@ from src.agents.tools.date_tool import create_datetime_tool
 from src.agents.tools.weather_tool import create_weather_tool
 from src.agents.tools.events_tools import create_city_events_tool
 from src.agents.tools.planning_tools import create_plan_ranker_tool
+from src.utils.logger import logger as log
 
 PLANNING_AGENT_NODE = "planning_agent"
 
@@ -39,8 +40,10 @@ def planning_agent_node(state: ChatState, runtime: Runtime[GraphContext]) -> dic
         system_prompt=system_prompt,
     )
 
-    agent.invoke(
+    response = agent.invoke(
         {"messages": state.messages},
     )
+    response_messages = response.get("messages", []) if isinstance(response, dict) else []
+    log.debug("Planning agent response: %s", response_messages)
 
-    return {}
+    return {"messages": response_messages} if response_messages else {}

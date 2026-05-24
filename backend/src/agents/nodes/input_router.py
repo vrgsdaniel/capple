@@ -16,7 +16,7 @@ You extract structured intent data for the Capple assistant.
 Rules:
 - Valid intents are exactly: general_chat, battery_levels, suggest_plan, app_help.
 - Return app_help when the user asks about product/app usage, onboarding, settings, or troubleshooting.
-- Return battery_levels for questions about social battery, energy level, or user/partner battery trends.
+- Return battery_levels for questions about how one is doing, social battery, energy level, or user/partner battery trends.
 - Return suggest_plan when user asks what to do, suggestions, activities, plans, or events.
 - Return general_chat for in-scope small talk that is not app-specific and not planning/battery-level focused.
 - Confidence must be between 0 and 1.

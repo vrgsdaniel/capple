@@ -102,6 +102,27 @@ class ChatService:
 
         return ""
 
+    @staticmethod
+    def _graph_assistant_text(messages: list) -> str:
+        """Return assistant text generated after the latest user message, if present."""
+        if not isinstance(messages, list) or not messages:
+            return ""
+
+        def is_human(msg) -> bool:
+            return getattr(msg, "type", "") == "human" or getattr(msg, "role", "") == "user"
+
+        def is_assistant(msg) -> bool:
+            return getattr(msg, "type", "") == "ai" or getattr(msg, "role", "") == "assistant"
+
+        latest_user = next((msg for msg in reversed(messages) if is_human(msg)), None)
+        if latest_user is None:
+            return ""
+
+        after_user = messages[messages.index(latest_user) + 1 :]
+        assistant_msg = next((msg for msg in reversed(after_user) if is_assistant(msg)), None)
+
+        return ChatService._extract_chunk_text(assistant_msg) if assistant_msg else ""
+
     def stream_response(self, message: str, history: list[dict]):
         """Stream chat responses as clean message content.
 
@@ -118,8 +139,13 @@ class ChatService:
         initial_state = self._build_initial_state(message, history)
         prepared_state = self._prepare_state_with_graph(initial_state)
 
+        graph_text = self._graph_assistant_text(prepared_state.get("messages", []))
+        if graph_text:
+            yield graph_text
+            return
+
         system_prompt = prepared_state.get("system_prompt") or "You are a helpful assistant."
-        messages = [SystemMessage(content=system_prompt)] + initial_state["messages"]
+        messages = [SystemMessage(content=system_prompt)] + prepared_state.get("messages", initial_state["messages"])
 
         emitted_any_chunk = False
         try:

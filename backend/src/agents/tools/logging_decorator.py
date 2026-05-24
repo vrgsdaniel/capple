@@ -20,8 +20,8 @@ def log_tool_call(tool_name: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
                 result = func(*args, **kwargs)
                 log.info(f"Tool {tool_name} completed")
                 return result
-            except Exception:
-                log.exception(f"Tool {tool_name} failed")
+            except Exception as e:
+                log.exception(f"Tool {tool_name} failed: {e}")
                 raise
 
         return wrapper
