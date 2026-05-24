@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
+from src.agents.graph import GraphContext
 from src.agents.state import SuggestedPlan
 
 
@@ -19,8 +20,7 @@ def _energy_band(battery_context: dict) -> str:
     return "high"
 
 
-@tool("rank_city_plans")
-def rank_city_plans(
+def create_city_plans_tool(
     battery_context: dict,
     weather_context: dict,
     city_events: dict,
@@ -62,3 +62,16 @@ def rank_city_plans(
             )
 
     return sorted(plans, key=lambda item: item.score, reverse=True)[:3]
+
+
+def create_plan_ranker_tool(context: GraphContext) -> tool:
+    @tool("get_rank_city_plans")
+    def get_rank_city_plans_tool(
+        battery_context: dict,
+        weather_context: dict,
+        city_events: dict,
+    ) -> list[SuggestedPlan]:
+        """Rank city plans deterministically using battery, weather and events context."""
+        return create_city_plans_tool(battery_context, weather_context, city_events)
+
+    return get_rank_city_plans_tool

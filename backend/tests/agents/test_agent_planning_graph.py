@@ -84,6 +84,17 @@ def test_system_prompt_includes_ranked_plans_for_planning():
     assert "Top ranked suggestions" in result["system_prompt"]
     assert "Tempelhofer Feld sunset walk" in result["system_prompt"]
 
+    state = {
+        "router_intent": "suggest_plan",
+        "intent_confidence": 0.9,
+        "selected_city": "Berlin",
+    }
+
+    result = system_prompt_node(state)
+
+    assert "Top ranked suggestions" in result["system_prompt"]
+    assert "Tempelhofer Feld sunset walk" in result["system_prompt"]
+
 
 def test_parse_user_input_infers_planning_intent_and_city():
     state = {

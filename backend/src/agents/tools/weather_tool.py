@@ -7,6 +7,7 @@ from urllib.request import urlopen
 
 from langchain_core.tools import tool
 
+from src.agents.graph import GraphContext
 from src.agents.state import WeatherContext
 
 _WEATHER_CODE_LABELS = {
@@ -41,7 +42,7 @@ def _build_fallback(city: str) -> WeatherContext:
     )
 
 
-def fetch_weather_context_for_city(city: str, latitude: float, longitude: float) -> WeatherContext:
+def get_weather_context_for_city(city: str, latitude: float, longitude: float) -> WeatherContext:
     """Fetch current weather for a city using Open-Meteo.
 
     Returns a fallback payload when the API is unavailable to keep chat resilient.
@@ -89,7 +90,10 @@ def fetch_weather_context_for_city(city: str, latitude: float, longitude: float)
     )
 
 
-@tool("fetch_weather_context")
-def fetch_weather_context(city: str, latitude: float, longitude: float) -> WeatherContext:
-    """Fetch weather context for a city and coordinates."""
-    return fetch_weather_context_for_city(city, latitude, longitude)
+def create_weather_tool(context: GraphContext) -> tool:
+    @tool("get_weather_context")
+    def get_weather_context(city: str, latitude: float, longitude: float) -> WeatherContext:
+        """Fetch weather context for a city and coordinates."""
+        return get_weather_context_for_city(city, latitude, longitude)
+
+    return get_weather_context

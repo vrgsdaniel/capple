@@ -1,6 +1,7 @@
 from json import JSONDecodeError
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages import SystemMessage
+from src.agents.graph import GraphContext
 from src.agents.llm.chatbot import Chatbot
 from src.agents.state import build_default_chat_state_model, ensure_chat_state
 from src.db.db import DB
@@ -54,9 +55,14 @@ class ChatService:
     def _prepare_state_with_graph(self, initial_state: dict) -> dict:
         """Run graph nodes that enrich state (context + system prompt)."""
         prepared_state = dict(initial_state)
-        run_config = {"db_client": self.db}
+        run_ctx = GraphContext(
+            db_client=self.db,
+            household_id=self.household_id,
+            user_id=self.user_id,
+        )
+
         if hasattr(self.graph, "stream"):
-            stream_iter = self.graph.stream(prepared_state, config=run_config)
+            stream_iter = self.graph.stream(prepared_state, context=run_ctx)
             for output in stream_iter:
                 for _, node_output in output.items():
                     if isinstance(node_output, dict):
@@ -65,7 +71,7 @@ class ChatService:
             return prepared_state
 
         if hasattr(self.graph, "invoke"):
-            invoked = self.graph.invoke(prepared_state, config=run_config)
+            invoked = self.graph.invoke(prepared_state, context=run_ctx)
             if not invoked:
                 return initial_state
             ensure_chat_state(invoked)

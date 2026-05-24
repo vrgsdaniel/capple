@@ -14,9 +14,8 @@ FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Home", "invite_code": "abc123", "role
 
 
 class FakeGraph:
-    def invoke(self, state, config=None):
-        assert isinstance(config, dict)
-        assert "db_client" in config
+    def invoke(self, state, config=None, context=None):
+        assert context.db_client
         return {**state, "system_prompt": "prep prompt", "battery_context": {"total_entries": 2}}
 
 

@@ -74,11 +74,11 @@ async def chat(
     except StopIteration:
         first_content = None
     except NotFoundException as e:
-        log.exception("Chat not found error")
+        log.exception(f"Chat not found error: {e}")
         yield ServerSentEvent(data=f"Error: {str(e)}", event="error")
         return
-    except Exception:
-        log.exception("Chat stream setup error")
+    except Exception as e:
+        log.exception(f"Chat stream setup error: {e}")
         yield ServerSentEvent(data="Something went wrong. Please try again.", event="error")
         return
 
@@ -96,8 +96,8 @@ async def chat(
         yield ServerSentEvent(data="[DONE]", event="done")
         log.info(f"Chat stream completed for user {user_id} in household {household_id}")
     except NotFoundException as e:
-        log.exception("Chat not found error")
+        log.exception(f"Chat not found error: {e}")
         yield ServerSentEvent(data=f"Error: {str(e)}", event="error")
-    except Exception:
-        log.exception("Chat stream error")
+    except Exception as e:
+        log.exception(f"Chat stream error: {e}")
         yield ServerSentEvent(data="Something went wrong. Please try again.", event="error")

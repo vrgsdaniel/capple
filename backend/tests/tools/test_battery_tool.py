@@ -1,4 +1,5 @@
-from src.agents.tools import battery_tool as battery_module
+from backend.src.agents.graph import GraphContext
+from src.agents.tools import battery_tool
 
 
 class _FakeDB:
@@ -13,27 +14,18 @@ class _FakeDB:
         return self._logs
 
 
-class _Runtime:
-    def __init__(self, context):
-        self.context = context
-
-
-def test_get_battery_context_builds_expected_summary():
+def test_get_battery_tool_builds_expected_summary():
     logs = [
         {"user_id": "u1", "level": 40, "effective_at": "2026-05-16T09:00:00+00:00"},
         {"user_id": "u1", "level": 60, "effective_at": "2026-05-17T09:00:00+00:00"},
         {"user_id": "u2", "level": 70, "effective_at": "2026-05-16T10:00:00+00:00"},
     ]
 
-    runtime = _Runtime(
-        battery_module.AgentContext(
-            db_client=_FakeDB(logs, expected_household_id="hh-1"),
-            household_id="hh-1",
-            user_id="u1",
-        )
+    result = battery_tool.build_battery_tool(
+        _FakeDB(logs, expected_household_id="hh-1"),
+        "hh-1",
+        "u1",
     )
-
-    result = battery_module.get_battery_context.func(runtime=runtime)
 
     assert result.total_entries == 3
     assert result.your_entries == 2
@@ -42,21 +34,37 @@ def test_get_battery_context_builds_expected_summary():
     assert result.partner_avg == 70.0
 
 
-def test_get_battery_context_prefers_runtime_context_values():
+def test_get_battery_tool_prefers_runtime_context_values():
     logs = [
         {"user_id": "u-runtime", "level": 50, "effective_at": "2026-05-16T09:00:00+00:00"},
         {"user_id": "u-partner", "level": 70, "effective_at": "2026-05-16T10:00:00+00:00"},
     ]
 
-    runtime = _Runtime(
-        battery_module.AgentContext(
-            db_client=_FakeDB(logs, expected_household_id="hh-runtime"),
-            household_id="hh-runtime",
-            user_id="u-runtime",
-        )
+    result = battery_tool.build_battery_tool(
+        _FakeDB(logs, expected_household_id="hh-runtime"),
+        "hh-runtime",
+        "u-runtime",
     )
 
-    result = battery_module.get_battery_context.func(runtime=runtime)
+    assert result.total_entries == 2
+    assert result.your_entries == 1
+    assert result.partner_entries == 1
+
+
+def test_create_get_battery_tool_tool_returns_invokable_tool():
+    logs = [
+        {"user_id": "u1", "level": 40, "effective_at": "2026-05-16T09:00:00+00:00"},
+        {"user_id": "u2", "level": 70, "effective_at": "2026-05-16T10:00:00+00:00"},
+    ]
+    ctx = GraphContext(
+        db_client=_FakeDB(logs, expected_household_id="hh-tool"),
+        household_id="hh-tool",
+        user_id="u1",
+    )
+
+    tool = battery_tool.create_battery_context_tool(ctx)
+
+    result = tool.invoke({})
 
     assert result.total_entries == 2
     assert result.your_entries == 1

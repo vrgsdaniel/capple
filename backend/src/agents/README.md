@@ -27,8 +27,8 @@ Tools are defined under `tools/` and exposed as LangChain tools:
 
 - `fetch_weather_context`: weather context for a city.
 - `get_city_events`: event candidates for supported cities.
-- `get_battery_context`: household battery insights for the last 30 days.
-- `get_datetime_context`: UTC + selected-city local datetime.
+- `get_battery_tool`: household battery insights for the last 30 days.
+- `get_datetime_tool`: UTC + selected-city local datetime.
 - `rank_city_plans`: deterministic ranking from context + events.
 
 ## Notes

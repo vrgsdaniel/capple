@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from langchain_core.tools import tool
 
+from src.agents.graph import GraphContext
 from src.agents.state import CityEvent
 
 
@@ -73,7 +74,7 @@ _ADAPTER_REGISTRY = {
 }
 
 
-def get_city_events(cities: list[str], now_utc: datetime | None = None) -> dict[str, list[CityEvent]]:
+def build_city_events_tool(cities: list[str], now_utc: datetime | None = None) -> dict[str, list[CityEvent]]:
     """Return local city events from a registry of city adapters."""
     current = now_utc or datetime.now(tz=ZoneInfo("UTC"))
     result: dict[str, list[CityEvent]] = {}
@@ -88,7 +89,10 @@ def get_city_events(cities: list[str], now_utc: datetime | None = None) -> dict[
     return result
 
 
-@tool("get_city_events")
-def get_city_events_tool(cities: list[str]) -> dict[str, list[CityEvent]]:
-    """Get event candidates for supported cities from the city adapter registry."""
-    return get_city_events(cities)
+def create_city_events_tool(context: GraphContext) -> tool:
+    @tool("get_city_events_tool")
+    def get_city_events_tool(cities: list[str]) -> dict[str, list[CityEvent]]:
+        """Get event candidates for supported cities from the city adapter registry."""
+        return build_city_events_tool(cities)
+
+    return get_city_events_tool

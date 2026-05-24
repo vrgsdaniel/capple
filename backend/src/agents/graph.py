@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from src.agents.state import ChatState
 
 
-class AgentContext(BaseModel):
+class GraphContext(BaseModel):
     db_client: Any = Field(exclude=True)
     household_id: str = ""
     user_id: str = ""

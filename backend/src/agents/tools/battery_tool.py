@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone, timedelta
-from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
-from src.agents.graph import AgentContext
+from src.agents.graph import GraphContext
 from src.agents.state import BatteryContext
 
 
@@ -21,21 +20,11 @@ def _compute_trend(daily_avgs: list[float]) -> str:
     return "stable"
 
 
-@tool("get_battery_context")
-def get_battery_context(
-    runtime: ToolRuntime[AgentContext] | None = None,
-) -> BatteryContext:
-    """Get household social battery context for the last 30 days."""
-    if runtime is None or runtime.context is None:
-        raise ValueError("runtime context is required for get_battery_context")
-
-    ctx = runtime.context
-    db = ctx.db_client
-    household_id = ctx.household_id
-    user_id = ctx.user_id
+def build_battery_tool(db, household_id: str, user_id: str) -> BatteryContext:
+    """Build household social battery context for the last 30 days."""
 
     if not household_id or not user_id:
-        raise ValueError("runtime context must include household_id and user_id")
+        raise ValueError("household_id and user_id are required")
 
     now = datetime.now(timezone.utc)
     since = (now - timedelta(days=30)).isoformat()
@@ -75,3 +64,12 @@ def get_battery_context(
         days_since_your_last_log=days_since_last(your_logs),
         days_since_partner_last_log=days_since_last(partner_logs),
     )
+
+
+def create_battery_context_tool(context: GraphContext) -> tool:
+    @tool("get_battery_tool")
+    def get_battery_tool() -> BatteryContext:
+        """Get household social battery context for the last 30 days."""
+        return build_battery_tool(context.db_client, context.household_id, context.user_id)
+
+    return get_battery_tool

@@ -1,12 +1,15 @@
 from typing import Literal
+import warnings
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
 from src.agents.state import ChatState, ensure_chat_state
 from src.settings import get_llm_settings
+from src.utils.logger import logger as log
 
 PARSE_USER_INPUT_NODE = "parse_user_input"
+SYSTEM_PROMPT_NODE = "system_prompt"
 
 BASE_SYSTEM_PROMPT = """
     You are Capple, the assistant for a couples' household app.
@@ -80,12 +83,18 @@ def _parse_with_llm(state_obj: ChatState, user_text: str) -> ParsedUserInput:
         return ParsedUserInput(intent="app_help", city=None, confidence=0.0, missing_requirements=[])
 
     structured_llm = chatbot.llm.with_structured_output(ParsedUserInput)
-    parsed = structured_llm.invoke(
-        [
-            SystemMessage(content=PARSER_SYSTEM_PROMPT),
-            HumanMessage(content=user_text),
-        ]
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message=r"Pydantic serializer warnings:.*field_name='parsed'.*",
+            category=UserWarning,
+        )
+        parsed = structured_llm.invoke(
+            [
+                SystemMessage(content=PARSER_SYSTEM_PROMPT),
+                HumanMessage(content=user_text),
+            ]
+        )
 
     if isinstance(parsed, ParsedUserInput):
         return parsed
@@ -100,7 +109,8 @@ def parse_user_input_node(state: ChatState) -> dict:
     try:
         parsed = _parse_with_llm(state_obj, user_text)
         parser_retry_needed = False
-    except Exception:
+    except Exception as e:
+        log.warning(f"Failed to parse user input with LLM, defaulting to app_help intent. Error: {e}")
         parsed = ParsedUserInput(intent="app_help", city=None, confidence=0.0, missing_requirements=[])
         parser_retry_needed = True
 

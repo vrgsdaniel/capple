@@ -1,6 +1,6 @@
 from urllib.error import URLError
 
-from src.agents.tools import weather_tool as weather_module
+from src.agents.tools import weather_tool
 
 
 class _FakeResponse:
@@ -24,9 +24,9 @@ def test_fetch_weather_context_returns_parsed_payload(monkeypatch):
         assert timeout == 4
         return _FakeResponse(payload)
 
-    monkeypatch.setattr(weather_module, "urlopen", fake_urlopen)
+    monkeypatch.setattr(weather_tool, "urlopen", fake_urlopen)
 
-    result = weather_module.fetch_weather_context_for_city("Berlin", 52.52, 13.405)
+    result = weather_tool.get_weather_context_for_city("Berlin", 52.52, 13.405)
 
     assert result.city == "Berlin"
     assert result.temperature == 21.4
@@ -38,9 +38,9 @@ def test_fetch_weather_context_returns_fallback_on_network_error(monkeypatch):
     def fake_urlopen(_url, timeout):
         raise URLError("network down")
 
-    monkeypatch.setattr(weather_module, "urlopen", fake_urlopen)
+    monkeypatch.setattr(weather_tool, "urlopen", fake_urlopen)
 
-    result = weather_module.fetch_weather_context_for_city("Madrid", 40.4168, -3.7038)
+    result = weather_tool.get_weather_context_for_city("Madrid", 40.4168, -3.7038)
 
     assert result.city == "Madrid"
     assert result.temperature is None

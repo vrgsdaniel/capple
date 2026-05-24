@@ -1,4 +1,4 @@
-from src.agents.tools.planning_tools import rank_city_plans
+from src.agents.tools.planning_tools import create_city_plans_tool
 
 
 def test_rank_city_plans_orders_highest_scores_first_and_limits_to_three():
@@ -18,12 +18,10 @@ def test_rank_city_plans_orders_highest_scores_first_and_limits_to_three():
         ],
     }
 
-    ranked = rank_city_plans.invoke(
-        {
-            "battery_context": battery_context,
-            "weather_context": weather_context,
-            "city_events": city_events,
-        }
+    ranked = create_city_plans_tool(
+        battery_context,
+        weather_context,
+        city_events,
     )
 
     assert len(ranked) == 3
