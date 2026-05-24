@@ -42,4 +42,5 @@ def planning_agent_node(state: ChatState, runtime: Runtime[GraphContext]) -> dic
     agent.invoke(
         {"messages": state.messages},
     )
+
     return {}

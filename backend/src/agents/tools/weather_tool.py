@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from json import JSONDecodeError
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import urlopen
+import requests
 
 from langchain_core.tools import tool
 
 from src.agents.graph import GraphContext
 from src.agents.state import WeatherContext
+from src.agents.tools.logging_decorator import log_tool_call
 
 _WEATHER_CODE_LABELS = {
     0: "clear",
@@ -42,32 +40,58 @@ def _build_fallback(city: str) -> WeatherContext:
     )
 
 
-def get_weather_context_for_city(city: str, latitude: float, longitude: float) -> WeatherContext:
+def _geocode_city(city: str) -> tuple[float, float] | None:
+    try:
+        response = requests.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1, "language": "en", "format": "json"},
+            timeout=4,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    results = data.get("results")
+    if not isinstance(results, list) or not results:
+        return None
+
+    first = results[0]
+    if not isinstance(first, dict):
+        return None
+
+    latitude = first.get("latitude")
+    longitude = first.get("longitude")
+    if not isinstance(latitude, (int, float)) or not isinstance(longitude, (int, float)):
+        return None
+
+    return float(latitude), float(longitude)
+
+
+def get_weather_context_for_city(city: str) -> WeatherContext:
     """Fetch current weather for a city using Open-Meteo.
 
     Returns a fallback payload when the API is unavailable to keep chat resilient.
     """
-    query = urlencode(
-        {
-            "latitude": latitude,
-            "longitude": longitude,
-            "current": "temperature_2m,weather_code,precipitation_probability",
-            "timezone": "auto",
-        }
-    )
-    url = f"https://api.open-meteo.com/v1/forecast?{query}"
-
-    try:
-        with urlopen(url, timeout=4) as response:
-            payload = response.read().decode("utf-8")
-    except (TimeoutError, HTTPError, URLError):
+    coords = _geocode_city(city)
+    if not coords:
         return _build_fallback(city)
+    latitude, longitude = coords
 
     try:
-        import json
-
-        data = json.loads(payload)
-    except (JSONDecodeError, ValueError):
+        response = requests.get(
+            "https://api.open-meteo.com/v1/forecast",
+            params={
+                "latitude": latitude,
+                "longitude": longitude,
+                "current": "temperature_2m,weather_code,precipitation_probability",
+                "timezone": "auto",
+            },
+            timeout=4,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
         return _build_fallback(city)
 
     current = data.get("current")
@@ -92,8 +116,9 @@ def get_weather_context_for_city(city: str, latitude: float, longitude: float) -
 
 def create_weather_tool(context: GraphContext) -> tool:
     @tool("get_weather_context")
-    def get_weather_context(city: str, latitude: float, longitude: float) -> WeatherContext:
-        """Fetch weather context for a city and coordinates."""
-        return get_weather_context_for_city(city, latitude, longitude)
+    @log_tool_call("get_weather_context")
+    def get_weather_context(city: str) -> WeatherContext:
+        """Fetch weather context for a city name."""
+        return get_weather_context_for_city(city)
 
     return get_weather_context

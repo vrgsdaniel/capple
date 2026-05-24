@@ -3,13 +3,12 @@ from __future__ import annotations
 from langchain_core.tools import tool
 
 from src.agents.graph import GraphContext
-from src.agents.state import SuggestedPlan
+from src.agents.state import BatteryContext, CityEvent, SuggestedPlan, WeatherContext
+from src.agents.tools.logging_decorator import log_tool_call
 
 
-def _energy_band(battery_context: dict) -> str:
-    values = [
-        v for v in [battery_context.get("your_avg"), battery_context.get("partner_avg")] if isinstance(v, (int, float))
-    ]
+def _energy_band(battery_context: BatteryContext) -> str:
+    values = [v for v in [battery_context.your_avg, battery_context.partner_avg] if isinstance(v, (int, float))]
     if not values:
         return "medium"
     avg_level = sum(values) / len(values)
@@ -21,21 +20,21 @@ def _energy_band(battery_context: dict) -> str:
 
 
 def create_city_plans_tool(
-    battery_context: dict,
-    weather_context: dict,
-    city_events: dict,
+    battery_context: BatteryContext | None,
+    weather_context: WeatherContext | None,
+    city_events: dict[str, list[CityEvent]] | None,
 ) -> list[SuggestedPlan]:
     """Rank city plans deterministically using battery, weather and events context."""
-    band = _energy_band(battery_context or {})
+    band = _energy_band(battery_context or BatteryContext(your_avg=0, partner_avg=0))
     plans: list[SuggestedPlan] = []
 
     for _, events in (city_events or {}).items():
         for event in events:
-            city = event.get("city", "")
-            category = event.get("category", "")
-            weather = (weather_context or {}).get(city, {})
-            precipitation = weather.get("precipitation_probability")
-            weather_label = weather.get("weather_label", "unknown")
+            city = event.city or ""
+            category = event.category or ""
+            weather = weather_context or WeatherContext()
+            precipitation = weather.precipitation_probability
+            weather_label = weather.weather_label or "unknown"
 
             score = 55
             if band == "low" and category in {"low_energy", "culture"}:
@@ -49,7 +48,7 @@ def create_city_plans_tool(
 
             plans.append(
                 SuggestedPlan(
-                    title=event.get("title", "Suggested local activity"),
+                    title=event.title or "Suggested local activity",
                     city=city,
                     rationale=(
                         f"Matches {band} social energy, considers {city} weather ({weather_label}), "
@@ -57,7 +56,7 @@ def create_city_plans_tool(
                     ),
                     score=score,
                     recommended_for="couple",
-                    best_time=event.get("start_iso", ""),
+                    best_time=event.start_iso or "",
                 )
             )
 
@@ -66,12 +65,17 @@ def create_city_plans_tool(
 
 def create_plan_ranker_tool(context: GraphContext) -> tool:
     @tool("get_rank_city_plans_tool")
+    @log_tool_call("get_rank_city_plans_tool")
     def get_rank_city_plans_tool(
-        battery_context: dict,
-        weather_context: dict,
-        city_events: dict,
+        battery_context: BatteryContext | None = None,
+        weather_context: WeatherContext | None = None,
+        city_events: dict[str, list[CityEvent]] | None = None,
     ) -> list[SuggestedPlan]:
         """Rank city plans deterministically using battery, weather and events context."""
-        return create_city_plans_tool(battery_context, weather_context, city_events)
+        return create_city_plans_tool(
+            battery_context,
+            weather_context,
+            city_events,
+        )
 
     return get_rank_city_plans_tool

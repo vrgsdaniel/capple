@@ -136,7 +136,7 @@ def test_chat_with_invalid_token_rejected(unauthorized_client: TestClient):
     "message",
     [
         "How do I create or join a household in Capple?",
-        "How is my partner's energy level this week?",
+        "How is my partner's energy level this month?",
         "Suggest a low-energy date idea in Madrid tonight.",
         "What should we do tonight?",
         "help",
@@ -178,14 +178,13 @@ def test_chat_with_multi_turn_history_streams_valid_sse(
 
     history = [
         {"role": "user", "content": "What should we do tonight?"},
-        {"role": "assistant", "content": "Sure, which city should I use for suggestions?"},
-        {"role": "user", "content": "Berlin"},
+        {"role": "assistant", "content": "Which city should I use for suggestions?"},
     ]
 
     response = client.post(
         "/api/chat",
         json={
-            "message": "Great, give me two options and keep it low-energy.",
+            "message": "Berlin, give me two options and keep it low-energy.",
             "history": history,
         },
         headers=_authorized_headers(integration_settings),

@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 
 from src.agents.graph import GraphContext
 from src.agents.state import BatteryContext
+from src.agents.tools.logging_decorator import log_tool_call
 
 
 def _compute_trend(daily_avgs: list[float]) -> str:
@@ -68,6 +69,7 @@ def build_battery_tool(db, household_id: str, user_id: str) -> BatteryContext:
 
 def create_battery_context_tool(context: GraphContext) -> tool:
     @tool("get_battery_tool")
+    @log_tool_call("get_battery_tool")
     def get_battery_tool() -> BatteryContext:
         """Get household social battery context for the last 30 days."""
         return build_battery_tool(context.db_client, context.household_id, context.user_id)

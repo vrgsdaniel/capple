@@ -7,6 +7,7 @@ from langchain_core.tools import tool
 
 from src.agents.graph import GraphContext
 from src.agents.state import CityEvent
+from src.agents.tools.logging_decorator import log_tool_call
 
 
 def _next_day_at(now: datetime, day_offset: int, hour: int) -> str:
@@ -91,6 +92,7 @@ def build_city_events_tool(cities: list[str], now_utc: datetime | None = None) -
 
 def create_city_events_tool(context: GraphContext) -> tool:
     @tool("get_city_events_tool")
+    @log_tool_call("get_city_events_tool")
     def get_city_events_tool(cities: list[str]) -> dict[str, list[CityEvent]]:
         """Get event candidates for supported cities from the city adapter registry."""
         return build_city_events_tool(cities)
