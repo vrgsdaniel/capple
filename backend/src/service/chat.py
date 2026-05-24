@@ -3,7 +3,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages import SystemMessage
 from src.agents.graph import GraphContext
 from src.agents.llm.chatbot import Chatbot
-from src.agents.state import build_default_chat_state_model, ensure_chat_state
+from src.agents.state import ChatState, build_default_chat_state_model, ensure_chat_state
 from src.db.db import DB
 from src.utils.logger import logger as log
 
@@ -18,7 +18,7 @@ class ChatService:
         self.chatbot = chatbot
         self.graph = graph
 
-    def _build_initial_state(self, message: str, history: list[dict]) -> dict:
+    def _build_initial_state(self, message: str, history: list[dict]) -> ChatState:
         """Build the initial state for the graph from message and history.
 
         Args:
@@ -52,7 +52,7 @@ class ChatService:
         ensure_chat_state(state)
         return state
 
-    def _prepare_state_with_graph(self, initial_state: dict) -> dict:
+    def _prepare_state_with_graph(self, initial_state: ChatState) -> ChatState:
         """Run graph nodes that enrich state (context + system prompt)."""
         prepared_state = dict(initial_state)
         run_ctx = GraphContext(
