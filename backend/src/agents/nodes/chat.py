@@ -1,4 +1,7 @@
+from src.settings import get_llm_settings
 from src.agents.state import ChatState, ensure_chat_state
+
+INTENT_CONFIDENCE_THRESHOLD = get_llm_settings().intent_confidence_threshold
 
 PARSE_USER_INPUT_NODE = "parse_user_input"
 SYSTEM_PROMPT_NODE = "system_prompt"
@@ -101,25 +104,22 @@ def _build_planning_prompt(state: ChatState) -> str:
 
 def system_prompt_node(state: ChatState) -> dict:
     """Build system prompt from routed context and planning data."""
+    # TODO: set a flag that might bypass the planning agent if confidence is low or requirements are missing, to avoid unnecessary agent calls until we have a better retry mechanism in place
     state_obj = ensure_chat_state(state)
     if state_obj.parser_retry_needed:
         system_prompt = (
-            f"{BASE_SYSTEM_PROMPT}\n\n"
-            "We could not safely interpret the request right now. "
+            "We could not safely interpret the request right now."
             "Apologize briefly and ask the user to retry their last message."
         )
     elif state_obj.intent_confidence < INTENT_CONFIDENCE_THRESHOLD:
         system_prompt = (
-            f"{BASE_SYSTEM_PROMPT}\n\n"
             "The user intent is ambiguous. Ask one concise clarifying question "
             "to determine whether they want battery insights, app help, or plan suggestions."
         )
     elif state_obj.missing_requirements:
         missing = ", ".join(state_obj.missing_requirements)
         system_prompt = (
-            f"{BASE_SYSTEM_PROMPT}\n\n"
-            f"Planning is missing required inputs: {missing}. "
-            "Ask the user for their city before suggesting plans."
+            f"Planning is missing required inputs: {missing}. Ask the user for their city before suggesting plans."
         )
     elif state_obj.router_intent == "suggest_plan":
         system_prompt = _build_planning_prompt(state)
