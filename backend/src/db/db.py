@@ -49,18 +49,22 @@ class DB:
 
     # --- battery_logs ---
 
-    def create_battery_log(self, user_id: str, household_id: str, level: int, note: str | None, effective_at: str) -> dict:
-        return self.store("battery_logs").insert({
-            "user_id": user_id,
-            "household_id": household_id,
-            "level": level,
-            "note": note,
-            "effective_at": effective_at,
-        })
+    def create_battery_log(
+        self, user_id: str, household_id: str, level: int, note: str | None, effective_at: str
+    ) -> dict:
+        return self.store("battery_logs").insert(
+            {
+                "user_id": user_id,
+                "household_id": household_id,
+                "level": level,
+                "note": note,
+                "effective_at": effective_at,
+            }
+        )
 
     def update_battery_log(self, log_id: str, user_id: str, data: dict) -> dict | None:
         result = (
-            self.client.table("battery_logs")
+            self.client.table("battery_logs")  # todo: move to store. DB should not handle the client directly
             .update(data)
             .eq("id", log_id)
             .eq("user_id", user_id)
@@ -70,7 +74,7 @@ class DB:
 
     def delete_battery_log(self, log_id: str, user_id: str) -> bool:
         result = (
-            self.client.table("battery_logs")
+            self.client.table("battery_logs")  # todo: move to store. DB should not handle the client directly
             .delete()
             .eq("id", log_id)
             .eq("user_id", user_id)

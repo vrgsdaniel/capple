@@ -1,22 +1,37 @@
-from langgraph.graph import StateGraph, START, END
-from src.agents.state import ChatState
-from src.agents.nodes.context import battery_context_node, NODE_NAME as CONTEXT_NODE
-from src.agents.nodes.chat import system_prompt_node
+from typing import Any
 
-SYSTEM_PROMPT_NODE = "system_prompt_node"
+from langgraph.graph import StateGraph, START, END
+from pydantic import BaseModel, Field
+
+from src.agents.state import ChatState
+
+
+class GraphContext(BaseModel):
+    db_client: Any = Field(exclude=True)
+    household_id: str = ""
+    user_id: str = ""
 
 
 def build_graph():
-    """Build the chat graph for context loading and prompt building."""
+    """Build a minimal graph: system prompt, then planning agent, then end."""
+    from src.agents.nodes.agent import planning_agent_node, PLANNING_AGENT_NODE
+    from src.agents.nodes.system_prompt import (
+        system_prompt_node,
+        SYSTEM_PROMPT_NODE,
+    )
+    from src.agents.nodes.input_router import PARSE_USER_INPUT_NODE, parse_user_input_node
+
     graph = StateGraph(ChatState)
 
-    # Add nodes in order.
-    graph.add_node(CONTEXT_NODE, battery_context_node)
+    # Core nodes
+    graph.add_node(PARSE_USER_INPUT_NODE, parse_user_input_node)
     graph.add_node(SYSTEM_PROMPT_NODE, system_prompt_node)
+    graph.add_node(PLANNING_AGENT_NODE, planning_agent_node)
 
-    # Build the flow: context -> prompt -> end.
-    graph.add_edge(START, CONTEXT_NODE)
-    graph.add_edge(CONTEXT_NODE, SYSTEM_PROMPT_NODE)
-    graph.add_edge(SYSTEM_PROMPT_NODE, END)
+    # Static workflow edges
+    graph.add_edge(START, PARSE_USER_INPUT_NODE)
+    graph.add_edge(PARSE_USER_INPUT_NODE, SYSTEM_PROMPT_NODE)
+    graph.add_edge(SYSTEM_PROMPT_NODE, PLANNING_AGENT_NODE)
+    graph.add_edge(PLANNING_AGENT_NODE, END)
 
     return graph.compile()

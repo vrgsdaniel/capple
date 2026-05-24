@@ -39,6 +39,7 @@ class LLMSettings(BaseSettings):
     stream: bool = True
     temperature: float = 0.3
     max_retries: int = 2
+    intent_confidence_threshold: float = 0.7
 
     # OpenAI
     open_ai_model: str = "gpt-4o-mini"

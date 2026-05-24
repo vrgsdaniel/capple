@@ -1,8 +1,9 @@
 from json import JSONDecodeError
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.messages import SystemMessage
+from src.agents.graph import GraphContext
 from src.agents.llm.chatbot import Chatbot
-from src.agents.state import ChatState
+from src.agents.state import ChatState, build_default_chat_state_model, ensure_chat_state
 from src.db.db import DB
 from src.utils.logger import logger as log
 
@@ -38,33 +39,45 @@ class ChatService:
         # Add the new user message
         messages = lc_history + [HumanMessage(content=message)]
 
-        # Initialize state with all required fields
-        state: ChatState = {
-            "messages": messages,
-            "household_id": str(self.household_id),
-            "user_id": self.user_id,
-            "battery_context": None,
-            "chatbot": self.chatbot,
-            "system_prompt": "",  # Will be set by system_prompt_node
-        }
+        # Initialize state with defaults, then override request-specific fields.
+        base_state = build_default_chat_state_model()
+        base_state.messages = messages
+        base_state.household_id = str(self.household_id)
+        base_state.user_id = self.user_id
+        base_state.chatbot = self.chatbot
+        state = base_state.model_dump()
+        state["messages"] = messages
+        state["chatbot"] = self.chatbot
 
+        ensure_chat_state(state)
         return state
 
     def _prepare_state_with_graph(self, initial_state: ChatState) -> ChatState:
         """Run graph nodes that enrich state (context + system prompt)."""
-        if hasattr(self.graph, "invoke"):
-            prepared_state = self.graph.invoke(initial_state)
-            if prepared_state:
-                return prepared_state
-            return initial_state
-
-        # Compatibility fallback for test doubles that only expose stream().
         prepared_state = dict(initial_state)
-        for output in self.graph.stream(initial_state):
-            for _, node_output in output.items():
-                if isinstance(node_output, dict):
-                    prepared_state.update(node_output)
-        return prepared_state
+        run_ctx = GraphContext(
+            db_client=self.db,
+            household_id=self.household_id,
+            user_id=self.user_id,
+        )
+
+        if hasattr(self.graph, "stream"):
+            stream_iter = self.graph.stream(prepared_state, context=run_ctx)
+            for output in stream_iter:
+                for _, node_output in output.items():
+                    if isinstance(node_output, dict):
+                        prepared_state.update(node_output)
+            ensure_chat_state(prepared_state)
+            return prepared_state
+
+        if hasattr(self.graph, "invoke"):
+            invoked = self.graph.invoke(prepared_state, context=run_ctx)
+            if not invoked:
+                return initial_state
+            ensure_chat_state(invoked)
+            return invoked
+
+        raise RuntimeError("Chat graph must expose stream() or invoke()")
 
     @staticmethod
     def _extract_chunk_text(chunk) -> str:
@@ -89,6 +102,27 @@ class ChatService:
 
         return ""
 
+    @staticmethod
+    def _graph_assistant_text(messages: list) -> str:
+        """Return assistant text generated after the latest user message, if present."""
+        if not isinstance(messages, list) or not messages:
+            return ""
+
+        def is_human(msg) -> bool:
+            return getattr(msg, "type", "") == "human" or getattr(msg, "role", "") == "user"
+
+        def is_assistant(msg) -> bool:
+            return getattr(msg, "type", "") == "ai" or getattr(msg, "role", "") == "assistant"
+
+        latest_user = next((msg for msg in reversed(messages) if is_human(msg)), None)
+        if latest_user is None:
+            return ""
+
+        after_user = messages[messages.index(latest_user) + 1 :]
+        assistant_msg = next((msg for msg in reversed(after_user) if is_assistant(msg)), None)
+
+        return ChatService._extract_chunk_text(assistant_msg) if assistant_msg else ""
+
     def stream_response(self, message: str, history: list[dict]):
         """Stream chat responses as clean message content.
 
@@ -105,8 +139,13 @@ class ChatService:
         initial_state = self._build_initial_state(message, history)
         prepared_state = self._prepare_state_with_graph(initial_state)
 
-        system_prompt = prepared_state.get("system_prompt", "You are a helpful assistant.")
-        messages = [SystemMessage(content=system_prompt)] + initial_state["messages"]
+        graph_text = self._graph_assistant_text(prepared_state.get("messages", []))
+        if graph_text:
+            yield graph_text
+            return
+
+        system_prompt = prepared_state.get("system_prompt") or "You are a helpful assistant."
+        messages = [SystemMessage(content=system_prompt)] + prepared_state.get("messages", initial_state["messages"])
 
         emitted_any_chunk = False
         try:
