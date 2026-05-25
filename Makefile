@@ -49,6 +49,11 @@ be-lint:
 be-test:
 	cd backend && uv run pytest
 
+# Run: make fe-test
+.PHONY: fe-test
+fe-test:
+	cd frontend && npm run test -- --runInBand
+
 # Run: make db-push
 .PHONY: db-push
 db-push:
