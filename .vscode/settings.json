@@ -5,5 +5,8 @@
   "python.testing.cwd": "${workspaceFolder}/backend",
   "python.testing.pytestArgs": [
     "tests"
-  ]
+  ],
+  "chat.tools.terminal.autoApprove": {
+    "npm test": true
+  }
 }

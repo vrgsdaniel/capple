@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { API_BASE_URL } from '@/lib/env'
 import type { Message } from '@/types/chat'
 
 export function useChat() {
@@ -27,7 +28,7 @@ export function useChat() {
 
       abortRef.current = new AbortController()
 
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/chat`, {
+      const res = await fetch(`${API_BASE_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -35,7 +36,7 @@ export function useChat() {
         },
         body: JSON.stringify({
           message: text,
-          history: updatedHistory, // history before this message
+          history: messages, // history before this message
         }),
         signal: abortRef.current.signal,
       })
