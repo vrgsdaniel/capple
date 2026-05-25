@@ -10,12 +10,16 @@ from src.errors import ConflictException
 class Store:
     """Generic table store that applies :class:`Criteria` to Supabase queries."""
 
-    def __init__(self, client: Client, table_name: str) -> None:
+    def __init__(self, client: Client, table_name: str, schema_name: str = "app") -> None:
         self._client = client
         self._table_name = table_name
+        self._schema_name = schema_name
+
+    def _table(self):
+        return self._client.schema(self._schema_name).table(self._table_name)
 
     def _build_query(self, criteria: Criteria):
-        query = self._client.table(self._table_name).select(criteria._select)
+        query = self._table().select(criteria._select)
         for f in criteria._filters:
             query = getattr(query, f.operator)(f.column, f.value)
         if criteria._order_by is not None:
@@ -40,7 +44,7 @@ class Store:
 
     def insert(self, data: dict) -> dict:
         try:
-            result = self._client.table(self._table_name).insert(data).execute()
+            result = self._table().insert(data).execute()
         except APIError as e:
             if e.code == "23505":
                 raise ConflictException(f"Duplicate entry in {self._table_name}") from e
@@ -48,13 +52,8 @@ class Store:
         return result.data[0]
 
     def update(self, entity_id: str, data: dict) -> dict | None:
-        result = (
-            self._client.table(self._table_name)
-            .update(data)
-            .eq("id", entity_id)
-            .execute()
-        )
+        result = self._table().update(data).eq("id", entity_id).execute()
         return result.data[0] if result.data else None
 
     def delete(self, entity_id: str) -> None:
-        self._client.table(self._table_name).delete().eq("id", entity_id).execute()
+        self._table().delete().eq("id", entity_id).execute()

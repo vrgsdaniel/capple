@@ -6,13 +6,15 @@ from src.utils.logger import logger as log
 
 
 class DB:
+    _APP_SCHEMA = "app"
+
     def __init__(self):
         settings = get_supabase_settings()
         self.client: Client = create_client(settings.url, settings.service_role_key)
 
     def store(self, table_name: str) -> Store:
         """Return a :class:`Store` bound to *table_name*."""
-        return Store(self.client, table_name)
+        return Store(self.client, table_name, schema_name=self._APP_SCHEMA)
 
     def is_alive(self) -> bool:
         try:
@@ -64,7 +66,8 @@ class DB:
 
     def update_battery_log(self, log_id: str, user_id: str, data: dict) -> dict | None:
         result = (
-            self.client.table("battery_logs")  # todo: move to store. DB should not handle the client directly
+            self.client.schema(self._APP_SCHEMA)
+            .table("battery_logs")  # todo: move to store. DB should not handle the client directly
             .update(data)
             .eq("id", log_id)
             .eq("user_id", user_id)
@@ -74,7 +77,8 @@ class DB:
 
     def delete_battery_log(self, log_id: str, user_id: str) -> bool:
         result = (
-            self.client.table("battery_logs")  # todo: move to store. DB should not handle the client directly
+            self.client.schema(self._APP_SCHEMA)
+            .table("battery_logs")  # todo: move to store. DB should not handle the client directly
             .delete()
             .eq("id", log_id)
             .eq("user_id", user_id)
