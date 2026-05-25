@@ -65,26 +65,15 @@ class DB:
         )
 
     def update_battery_log(self, log_id: str, user_id: str, data: dict) -> dict | None:
-        result = (
-            self.client.schema(self._APP_SCHEMA)
-            .table("battery_logs")  # todo: move to store. DB should not handle the client directly
-            .update(data)
-            .eq("id", log_id)
-            .eq("user_id", user_id)
-            .execute()
+        result = self.store("battery_logs").update_where(
+            Criteria().eq("id", log_id).eq("user_id", user_id),
+            data,
         )
-        return result.data[0] if result.data else None
+        return result[0] if result else None
 
     def delete_battery_log(self, log_id: str, user_id: str) -> bool:
-        result = (
-            self.client.schema(self._APP_SCHEMA)
-            .table("battery_logs")  # todo: move to store. DB should not handle the client directly
-            .delete()
-            .eq("id", log_id)
-            .eq("user_id", user_id)
-            .execute()
-        )
-        return len(result.data) > 0
+        result = self.store("battery_logs").delete_where(Criteria().eq("id", log_id).eq("user_id", user_id))
+        return len(result) > 0
 
     def find_battery_logs_by_household(self, household_id: str, start: str, end: str) -> list[dict]:
         return self.store("battery_logs").find(

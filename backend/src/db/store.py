@@ -20,12 +20,16 @@ class Store:
 
     def _build_query(self, criteria: Criteria):
         query = self._table().select(criteria._select)
-        for f in criteria._filters:
-            query = getattr(query, f.operator)(f.column, f.value)
+        query = self._apply_filters(query, criteria)
         if criteria._order_by is not None:
             query = query.order(criteria._order_by, desc=not criteria._ascending)
         if criteria._limit is not None:
             query = query.limit(criteria._limit)
+        return query
+
+    def _apply_filters(self, query, criteria: Criteria):
+        for f in criteria._filters:
+            query = getattr(query, f.operator)(f.column, f.value)
         return query
 
     def find(self, criteria: Criteria | None = None) -> list[dict]:
@@ -55,5 +59,17 @@ class Store:
         result = self._table().update(data).eq("id", entity_id).execute()
         return result.data[0] if result.data else None
 
+    def update_where(self, criteria: Criteria, data: dict) -> list[dict]:
+        query = self._table().update(data)
+        query = self._apply_filters(query, criteria)
+        result = query.execute()
+        return result.data
+
     def delete(self, entity_id: str) -> None:
         self._table().delete().eq("id", entity_id).execute()
+
+    def delete_where(self, criteria: Criteria) -> list[dict]:
+        query = self._table().delete()
+        query = self._apply_filters(query, criteria)
+        result = query.execute()
+        return result.data
