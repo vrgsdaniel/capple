@@ -44,6 +44,11 @@ lint:
 be-lint:
 	cd backend && uv run ruff check .
 
+# Run: make be-format
+.PHONY: be-format
+be-format:
+	cd backend && uv run ruff check --fix .
+
 # Run: make be-test
 .PHONY: be-test
 be-test:

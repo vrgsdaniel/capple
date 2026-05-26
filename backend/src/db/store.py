@@ -24,7 +24,8 @@ class Store:
         if criteria._order_by is not None:
             query = query.order(criteria._order_by, desc=not criteria._ascending)
         if criteria._limit is not None:
-            query = query.limit(criteria._limit)
+            offset = criteria._offset or 0
+            query = query.range(offset, offset + criteria._limit - 1)
         return query
 
     def _apply_filters(self, query, criteria: Criteria):
@@ -73,3 +74,11 @@ class Store:
         query = self._apply_filters(query, criteria)
         result = query.execute()
         return result.data
+
+    def count(self, criteria: Criteria | None = None) -> int:
+        """Count total rows matching criteria."""
+        criteria = criteria or Criteria()
+        query = self._table().select("id", count="exact")
+        query = self._apply_filters(query, criteria)
+        result = query.execute()
+        return result.count or 0

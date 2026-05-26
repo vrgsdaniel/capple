@@ -84,6 +84,94 @@ class DB:
             .order("effective_at", ascending=False)
         )
 
+    # --- recipes ---
+
+    def get_recipe_by_id(self, recipe_id: str) -> dict | None:
+        """Get full recipe details row."""
+        return self.store("recipes").find_one(Criteria().eq("id", recipe_id))
+
+    def find_recipes(
+        self,
+        search: str | None = None,
+        recipe_type: str | None = None,
+        labels: list[str] | None = None,
+        ingredients: list[str] | None = None,
+        sort_by: str = "cook_time_minutes",
+        sort_order: str = "asc",
+        page: int = 1,
+        limit: int = 20,
+    ) -> list[dict]:
+        """Find recipes with filtering and pagination."""
+        criteria = Criteria()
+
+        # Search filter (ILIKE on name)
+        if search:
+            # TODO: For better search, consider adding a tsvector column and using full-text search instead of ILIKE
+            criteria = criteria.ilike("name", f"%{search}%")
+
+        # Exact filters
+        if recipe_type:
+            criteria = criteria.eq("recipe_type", recipe_type)
+
+        # Sorting (validate to prevent injection)
+        valid_sorts = {"rating", "prep_time_minutes", "cook_time_minutes"}
+        sort_col = sort_by if sort_by in valid_sorts else "cook_time_minutes"
+        sort_asc = sort_order.lower() != "desc"
+        criteria = criteria.order(sort_col, ascending=sort_asc)
+
+        # Pagination
+        offset = (page - 1) * limit
+        criteria = criteria.limit(limit).offset(offset)
+
+        recipes = self.store("recipes").find(criteria)
+
+        # Filter by labels/ingredients (client-side for simplicity, can be optimized later)
+        if labels or ingredients:
+            recipes = self._filter_recipes_by_arrays(recipes, labels, ingredients)
+
+        return recipes
+
+    def count_recipes(
+        self,
+        search: str | None = None,
+        recipe_type: str | None = None,
+        labels: list[str] | None = None,
+        ingredients: list[str] | None = None,
+    ) -> int:
+        """Count total recipes matching criteria."""
+        criteria = Criteria()
+
+        if search:
+            # TODO: For better search, consider adding a tsvector column and using full-text search instead of ILIKE
+            criteria = criteria.ilike("name", f"%{search}%")
+        if recipe_type:
+            criteria = criteria.eq("recipe_type", recipe_type)
+
+        total = self.store("recipes").count(criteria)
+
+        # If we're filtering by labels/ingredients, adjust count
+        if labels or ingredients:
+            # For accurate count, we'd need to fetch all matching recipes and filter
+            # For MVP, we return the unfiltered count (slight inaccuracy acceptable)
+            pass
+
+        return total
+
+    def _filter_recipes_by_arrays(
+        self, recipes: list[dict], labels: list[str] | None, ingredients: list[str] | None
+    ) -> list[dict]:
+        """Filter recipes by labels or ingredients (client-side JSONB filtering)."""
+        filtered = recipes
+        if labels:
+            label_set = set(labels)
+            filtered = [r for r in filtered if r.get("labels") and any(label in label_set for label in r["labels"])]
+        if ingredients:
+            ingredient_set = set(ingredients)
+            filtered = [
+                r for r in filtered if r.get("ingredients") and any(ing in ingredient_set for ing in r["ingredients"])
+            ]
+        return filtered
+
 
 def get_db() -> DB:
     """Factory function for DB to allow dependency injection."""

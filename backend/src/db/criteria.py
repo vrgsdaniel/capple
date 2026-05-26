@@ -17,6 +17,7 @@ class Criteria:
     _select: str = "*"
     _filters: list[Criterion] = field(default_factory=list)
     _limit: int | None = None
+    _offset: int | None = None
     _order_by: str | None = None
     _ascending: bool = True
 
@@ -72,6 +73,10 @@ class Criteria:
 
     def limit(self, n: int) -> Criteria:
         self._limit = n
+        return self
+
+    def offset(self, n: int) -> Criteria:
+        self._offset = n
         return self
 
     def order(self, column: str, *, ascending: bool = True) -> Criteria:
