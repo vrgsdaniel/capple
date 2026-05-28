@@ -6,18 +6,26 @@ CREATE TABLE app.recipe_user_interactions (
     interaction_type VARCHAR(20) NOT NULL CHECK (interaction_type IN ('liked', 'cooked', 'rated')),
     value INTEGER,
     created_at timestamptz DEFAULT NOW(),
-    updated_at timestamptz DEFAULT NOW(),
-
-    -- 'liked': unique per (user, recipe) - one like per user
-    UNIQUE(user_id, recipe_id, interaction_type)
-        WHERE interaction_type = 'liked',
-
-    -- 'cooked': unique per (user, recipe) - one cooked entry per user
-    -- 'rated': unique per (user, recipe) - one rating per user
-    UNIQUE(user_id, recipe_id, interaction_type)
-        WHERE interaction_type IN ('cooked', 'rated')
+    updated_at timestamptz DEFAULT NOW()
 );
 
+-- Partial unique indexes for each interaction type
+-- 'liked': unique per (user, recipe) - one like per user
+CREATE UNIQUE INDEX idx_recipe_user_interactions_unique_liked
+    ON app.recipe_user_interactions (user_id, recipe_id)
+    WHERE interaction_type = 'liked';
+
+-- 'cooked': unique per (user, recipe) - one cooked entry per user
+CREATE UNIQUE INDEX idx_recipe_user_interactions_unique_cooked
+    ON app.recipe_user_interactions (user_id, recipe_id)
+    WHERE interaction_type = 'cooked';
+
+-- 'rated': unique per (user, recipe) - one rating per user
+CREATE UNIQUE INDEX idx_recipe_user_interactions_unique_rated
+    ON app.recipe_user_interactions (user_id, recipe_id)
+    WHERE interaction_type = 'rated';
+
+-- General indexes for lookups
 CREATE INDEX idx_recipe_user_interactions_lookup
     ON app.recipe_user_interactions (user_id, recipe_id, interaction_type);
 CREATE INDEX idx_recipe_user_interactions_type
