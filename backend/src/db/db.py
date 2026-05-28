@@ -172,6 +172,40 @@ class DB:
             ]
         return filtered
 
+    # --- recipe user interactions ---
+
+    def has_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
+        """Check if user has an interaction for recipe."""
+        result = self.store("recipe_user_interactions").find_one(
+            Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id).eq("interaction_type", interaction_type)
+        )
+        return result is not None
+
+    def add_interaction(self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None) -> dict:
+        """Add a user recipe interaction (like, cooked, rated)."""
+        return self.store("recipe_user_interactions").insert(
+            {
+                "recipe_id": recipe_id,
+                "user_id": user_id,
+                "interaction_type": interaction_type,
+                "value": value,
+            }
+        )
+
+    def remove_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
+        """Remove a user recipe interaction."""
+        criteria = (
+            Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id).eq("interaction_type", interaction_type)
+        )
+
+        result = self.store("recipe_user_interactions").delete_where(criteria)
+        return len(result) > 0
+
+    def get_all_user_interactions(self, user_id: str) -> list[dict]:
+        """Get all interactions for a user."""
+        criteria = Criteria().eq("user_id", user_id)
+        return self.store("recipe_user_interactions").find(criteria)
+
 
 def get_db() -> DB:
     """Factory function for DB to allow dependency injection."""
