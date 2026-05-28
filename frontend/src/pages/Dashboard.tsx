@@ -5,6 +5,7 @@ import api from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import BatteryTab from '@/components/battery/BatteryTab'
+import MealsTab from '@/components/meals/MealsTab'
 import ChatDrawer from '@/components/chat/ChatDrawer'
 
 interface Profile {
@@ -53,7 +54,7 @@ export default function Dashboard() {
         <Tabs defaultValue="battery">
           <TabsList className="mb-6">
             <TabsTrigger value="battery">⚡ Battery</TabsTrigger>
-            <TabsTrigger value="meals" disabled>🍽 Meals</TabsTrigger>
+            <TabsTrigger value="meals">🍽 Meals</TabsTrigger>
             <TabsTrigger value="activities" disabled>📅 Activities</TabsTrigger>
           </TabsList>
 
@@ -65,6 +66,10 @@ export default function Dashboard() {
                 householdId={household.id}
               />
             )}
+          </TabsContent>
+
+          <TabsContent value="meals">
+            <MealsTab />
           </TabsContent>
         </Tabs>
       </div>
