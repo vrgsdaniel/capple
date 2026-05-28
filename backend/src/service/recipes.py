@@ -6,51 +6,23 @@ from src.utils.logger import logger as log
 class RecipeService:
     def __init__(self, db: DB):
         self.db = db
-        self._user_id = None
-        self._liked_recipes = set()
-        self._cooked_recipes = set()
-        self._rated_recipes = {}  # recipe_id -> rating value
 
-    def set_context(self, context: dict | None):
-        """Set execution context with user_id."""
-        self._user_id = context.get("user_id") if context else None
-        self._liked_recipes = set()
-        self._cooked_recipes = set()
-        self._rated_recipes = {}
-        if self._user_id:
-            self._load_interactions()
-
-    def _load_interactions(self):
-        """Load all interactions for the user into memory."""
-        interactions = self.db.get_all_user_interactions(self._user_id)
-        self._liked_recipes = {r["recipe_id"] for r in interactions if r["interaction_type"] == "liked"}
-        self._cooked_recipes = {r["recipe_id"] for r in interactions if r["interaction_type"] == "cooked"}
-        self._rated_recipes = {
-            r["recipe_id"]: r["value"] for r in interactions if r["interaction_type"] == "rated" and r["value"]
-        }
-
-    def _ensure_user_id(self) -> str:
-        """Get user_id from context. Raises if context not set."""
-        if not self._user_id:
-            raise ValueError("User context not available")
-        return self._user_id
-
-    def get_recipe_details(self, recipe_id: str) -> dict:
-        """Get full recipe details. Includes user interactions if context is set."""
+    def get_recipe_details(self, recipe_id: str, user_id: str | None = None) -> dict:
+        """Get full recipe details. Includes user interactions if user_id provided."""
         recipe = self.db.get_recipe_by_id(recipe_id)
         if not recipe:
             log.exception(f"Recipe {recipe_id} not found")
             raise NotFoundException("Recipe not found.")
 
-        if self._user_id:
-            recipe["liked"] = recipe_id in self._liked_recipes
-            recipe["cooked"] = recipe_id in self._cooked_recipes
-            recipe["user_rating"] = self._rated_recipes.get(recipe_id)
+        if user_id:
+            interactions = self.db.get_recipe_interactions(recipe_id, user_id)
+            recipe.update(interactions)
 
         return recipe
 
     def list_recipes(
         self,
+        user_id: str | None = None,
         search: str | None = None,
         recipe_type: str | None = None,
         labels: list[str] | None = None,
@@ -60,7 +32,7 @@ class RecipeService:
         page: int = 1,
         limit: int = 20,
     ) -> dict:
-        """List recipes with filtering, sorting, and pagination. Includes user interactions if context is set."""
+        """List recipes with filtering, sorting, and pagination. Includes user interactions if user_id provided."""
         # Validate pagination params
         page = max(1, page)
         limit = min(100, max(1, limit))
@@ -77,12 +49,12 @@ class RecipeService:
             limit=limit,
         )
 
-        # Enrich with user interactions if context available (from pre-loaded sets)
-        if self._user_id:
+        # Enrich with user interactions if user_id provided
+        if user_id and recipes:
+            recipe_ids = [recipe["id"] for recipe in recipes]
+            interactions_map = self.db.get_recipes_interactions_bulk(recipe_ids, user_id)
             for recipe in recipes:
-                recipe["liked"] = recipe["id"] in self._liked_recipes
-                recipe["cooked"] = recipe["id"] in self._cooked_recipes
-                recipe["user_rating"] = self._rated_recipes.get(recipe["id"])
+                recipe.update(interactions_map.get(recipe["id"], {}))
 
         # Get total count
         total = self.db.count_recipes(
@@ -99,38 +71,28 @@ class RecipeService:
             "limit": limit,
         }
 
-    def toggle_recipe_like(self, recipe_id: str) -> bool:
-        """Toggle like for a recipe. Returns True if now liked, False if unliked. Requires context."""
-        user_id = self._ensure_user_id()
-
+    def toggle_recipe_like(self, recipe_id: str, user_id: str) -> bool:
+        """Toggle like for a recipe. Returns True if now liked, False if unliked."""
         interacted = self.db.has_interaction(recipe_id, user_id, "liked")
         if interacted:
             self.db.remove_interaction(recipe_id, user_id, "liked")
-            self._liked_recipes.discard(recipe_id)
             return False
         else:
             self.db.add_interaction(recipe_id, user_id, "liked")
-            self._liked_recipes.add(recipe_id)
             return True
 
-    def toggle_recipe_cooked(self, recipe_id: str) -> bool:
-        """Toggle cooked for a recipe. Returns True if now cooked, False if uncooked. Requires context."""
-        user_id = self._ensure_user_id()
-
+    def toggle_recipe_cooked(self, recipe_id: str, user_id: str) -> bool:
+        """Toggle cooked for a recipe. Returns True if now cooked, False if uncooked."""
         interacted = self.db.has_interaction(recipe_id, user_id, "cooked")
         if interacted:
             self.db.remove_interaction(recipe_id, user_id, "cooked")
-            self._cooked_recipes.discard(recipe_id)
             return False
         else:
             self.db.add_interaction(recipe_id, user_id, "cooked")
-            self._cooked_recipes.add(recipe_id)
             return True
 
-    def rate_recipe(self, recipe_id: str, rating: int) -> int:
+    def rate_recipe(self, recipe_id: str, user_id: str, rating: int) -> int:
         """Rate a recipe (1-5). Updates existing rating if present. Returns the rating value."""
-        user_id = self._ensure_user_id()
-
         # Validate rating
         if not 1 <= rating <= 5:
             raise ValueError("Rating must be between 1 and 5")
@@ -140,6 +102,4 @@ class RecipeService:
             self.db.update_interaction(recipe_id, user_id, "rated", value=rating)
         else:
             self.db.add_interaction(recipe_id, user_id, "rated", value=rating)
-
-        self._rated_recipes[recipe_id] = rating
         return rating

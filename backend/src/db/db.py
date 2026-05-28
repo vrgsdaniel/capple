@@ -174,6 +174,45 @@ class DB:
 
     # --- recipe user interactions ---
 
+    def get_recipe_interactions(self, recipe_id: str, user_id: str) -> dict:
+        """Get all interactions for a specific recipe and user. Returns dict with liked, cooked, user_rating."""
+        interactions = self.store("recipe_user_interactions").find(
+            Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id)
+        )
+        result = {"liked": False, "cooked": False, "user_rating": None}
+        for interaction in interactions:
+            if interaction["interaction_type"] == "liked":
+                result["liked"] = True
+            elif interaction["interaction_type"] == "cooked":
+                result["cooked"] = True
+            elif interaction["interaction_type"] == "rated":
+                result["user_rating"] = interaction.get("value")
+        return result
+
+    def get_recipes_interactions_bulk(self, recipe_ids: list[str], user_id: str) -> dict[str, dict]:
+        """Get interactions for multiple recipes. Returns dict mapping recipe_id -> {liked, cooked, user_rating}."""
+        if not recipe_ids:
+            return {}
+        
+        interactions = self.store("recipe_user_interactions").find(
+            Criteria().eq("user_id", user_id).in_("recipe_id", recipe_ids)
+        )
+        
+        # Initialize all recipes with no interactions
+        result = {recipe_id: {"liked": False, "cooked": False, "user_rating": None} for recipe_id in recipe_ids}
+        
+        # Populate with actual interactions
+        for interaction in interactions:
+            recipe_id = interaction["recipe_id"]
+            if interaction["interaction_type"] == "liked":
+                result[recipe_id]["liked"] = True
+            elif interaction["interaction_type"] == "cooked":
+                result[recipe_id]["cooked"] = True
+            elif interaction["interaction_type"] == "rated":
+                result[recipe_id]["user_rating"] = interaction.get("value")
+        
+        return result
+
     def has_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
         """Check if user has an interaction for recipe."""
         result = self.store("recipe_user_interactions").find_one(
@@ -208,11 +247,6 @@ class DB:
 
         result = self.store("recipe_user_interactions").delete_where(criteria)
         return len(result) > 0
-
-    def get_all_user_interactions(self, user_id: str) -> list[dict]:
-        """Get all interactions for a user."""
-        criteria = Criteria().eq("user_id", user_id)
-        return self.store("recipe_user_interactions").find(criteria)
 
 
 def get_db() -> DB:

@@ -57,7 +57,7 @@ class TestGetRecipeDetails:
         assert response.status_code == 200
         assert response.json()["name"] == "Pasta Carbonara"
         assert response.json()["rating"] == 5
-        mock_service.get_recipe_details.assert_called_once_with(recipe_id)
+        mock_service.get_recipe_details.assert_called_once_with(recipe_id, FAKE_USER.id)
 
     def test_not_found(self, client, mock_service):
         recipe_id = "nonexistent"
@@ -96,6 +96,8 @@ class TestListRecipes:
         assert data["total"] == 1
         assert len(data["items"]) == 1
         assert data["items"][0]["name"] == "Pasta"
+        call_kwargs = mock_service.list_recipes.call_args[1]
+        assert call_kwargs["user_id"] == FAKE_USER.id
 
     def test_with_search_filter(self, client, mock_service):
         mock_service.list_recipes = MagicMock(
@@ -123,6 +125,7 @@ class TestListRecipes:
         mock_service.list_recipes.assert_called_once()
         call_kwargs = mock_service.list_recipes.call_args[1]
         assert call_kwargs["search"] == "pasta"
+        assert call_kwargs["user_id"] == FAKE_USER.id
 
     def test_with_sorting(self, client, mock_service):
         mock_service.list_recipes = MagicMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
@@ -196,8 +199,8 @@ class TestToggleInteractions:
         assert response.status_code == 200
         data = response.json()
         assert data[field_name] is expected_field_value
-        getattr(mock_service, service_method).assert_called_once_with(recipe_id)
-        mock_service.get_recipe_details.assert_called_once_with(recipe_id)
+        getattr(mock_service, service_method).assert_called_once_with(recipe_id, FAKE_USER.id)
+        mock_service.get_recipe_details.assert_called_once_with(recipe_id, FAKE_USER.id)
 
     @pytest.mark.parametrize(
         "endpoint,service_method,exception,expected_status",
@@ -246,8 +249,8 @@ class TestRateRecipe:
         assert response.status_code == 200
         data = response.json()
         assert data["user_rating"] == 4
-        mock_service.rate_recipe.assert_called_once_with(recipe_id, rating)
-        mock_service.get_recipe_details.assert_called_once_with(recipe_id)
+        mock_service.rate_recipe.assert_called_once_with(recipe_id, FAKE_USER.id, rating)
+        mock_service.get_recipe_details.assert_called_once_with(recipe_id, FAKE_USER.id)
 
     @pytest.mark.parametrize("invalid_rating", [0, 6, -1, 10])
     def test_invalid_rating_values(self, client, mock_service, invalid_rating):

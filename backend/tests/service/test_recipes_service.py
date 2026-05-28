@@ -17,7 +17,7 @@ def service(mock_db):
 
 
 class TestGetRecipeDetails:
-    def test_success(self, service, mock_db):
+    def test_success_without_user(self, service, mock_db):
         recipe_id = "recipe-123"
         mock_recipe = {
             "id": recipe_id,
@@ -35,7 +35,35 @@ class TestGetRecipeDetails:
 
         assert result["name"] == "Pasta Carbonara"
         assert result["rating"] == 5
+        assert "liked" not in result
         mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
+        mock_db.get_recipe_interactions.assert_not_called()
+
+    def test_success_with_user(self, service, mock_db):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+        mock_recipe = {
+            "id": recipe_id,
+            "name": "Pasta Carbonara",
+            "recipe_type": "pasta",
+            "ingredients": ["pasta", "eggs", "bacon"],
+            "labels": ["italian"],
+            "prep_time_minutes": 10,
+            "cook_time_minutes": 20,
+            "rating": 5,
+        }
+        mock_interactions = {"liked": True, "cooked": False, "user_rating": 4}
+        mock_db.get_recipe_by_id.return_value = mock_recipe
+        mock_db.get_recipe_interactions.return_value = mock_interactions
+
+        result = service.get_recipe_details(recipe_id, user_id)
+
+        assert result["name"] == "Pasta Carbonara"
+        assert result["liked"] is True
+        assert result["cooked"] is False
+        assert result["user_rating"] == 4
+        mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
+        mock_db.get_recipe_interactions.assert_called_once_with(recipe_id, user_id)
 
     def test_not_found(self, service, mock_db):
         recipe_id = "nonexistent"
@@ -48,7 +76,7 @@ class TestGetRecipeDetails:
 
 
 class TestListRecipes:
-    def test_success_no_filters(self, service, mock_db):
+    def test_success_no_filters_without_user(self, service, mock_db):
         mock_recipes = [
             {
                 "id": "recipe-1",
@@ -68,8 +96,37 @@ class TestListRecipes:
         assert result["total"] == 1
         assert len(result["items"]) == 1
         assert result["items"][0]["name"] == "Pasta"
+        assert "liked" not in result["items"][0]
         assert result["page"] == 1
         assert result["limit"] == 20
+        mock_db.get_recipes_interactions_bulk.assert_not_called()
+
+    def test_success_with_user(self, service, mock_db):
+        user_id = "user-456"
+        mock_recipes = [
+            {
+                "id": "recipe-1",
+                "name": "Pasta",
+                "recipe_type": "pasta",
+                "labels": ["italian"],
+                "prep_time_minutes": 10,
+                "cook_time_minutes": 20,
+                "rating": 5,
+            }
+        ]
+        mock_interactions = {
+            "recipe-1": {"liked": True, "cooked": False, "user_rating": 4}
+        }
+        mock_db.find_recipes.return_value = mock_recipes
+        mock_db.count_recipes.return_value = 1
+        mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
+
+        result = service.list_recipes(user_id=user_id)
+
+        assert result["total"] == 1
+        assert result["items"][0]["liked"] is True
+        assert result["items"][0]["user_rating"] == 4
+        mock_db.get_recipes_interactions_bulk.assert_called_once_with(["recipe-1"], user_id)
 
     def test_pagination_defaults(self, service, mock_db):
         mock_recipes = []
@@ -125,146 +182,44 @@ class TestListRecipes:
             assert call_kwargs[key] == value
 
 
-class TestSetContext:
-    def test_set_context_loads_interactions(self, service, mock_db):
-        user_id = "user-123"
-        mock_interactions = [
-            {"recipe_id": "recipe-1", "interaction_type": "liked", "value": None},
-            {"recipe_id": "recipe-2", "interaction_type": "cooked", "value": None},
-            {"recipe_id": "recipe-3", "interaction_type": "rated", "value": 4},
-        ]
-        mock_db.get_all_user_interactions.return_value = mock_interactions
-
-        service.set_context({"user_id": user_id})
-
-        assert service._user_id == user_id
-        assert "recipe-1" in service._liked_recipes
-        assert "recipe-2" in service._cooked_recipes
-        assert service._rated_recipes["recipe-3"] == 4
-        mock_db.get_all_user_interactions.assert_called_once_with(user_id)
-
-    def test_set_context_resets_on_new_user(self, service, mock_db):
-        # First set context with user-1
-        mock_db.get_all_user_interactions.return_value = [
-            {"recipe_id": "recipe-1", "interaction_type": "liked", "value": None},
-        ]
-        service.set_context({"user_id": "user-1"})
-        assert "recipe-1" in service._liked_recipes
-
-        # Now set context with user-2 (different interactions)
-        mock_db.get_all_user_interactions.return_value = [
-            {"recipe_id": "recipe-2", "interaction_type": "liked", "value": None},
-        ]
-        service.set_context({"user_id": "user-2"})
-
-        # Old interactions should be cleared
-        assert "recipe-1" not in service._liked_recipes
-        assert "recipe-2" in service._liked_recipes
-
-    def test_set_context_none_clears_user_id(self, service, mock_db):
-        mock_db.get_all_user_interactions.return_value = []
-        service.set_context({"user_id": "user-123"})
-        assert service._user_id == "user-123"
-
-        service.set_context(None)
-        assert service._user_id is None
-
-
-class TestGetRecipeDetailsWithInteractions:
-    def test_includes_interactions_when_context_set(self, service, mock_db):
-        recipe_id = "recipe-123"
-        user_id = "user-456"
-        mock_recipe = {
-            "id": recipe_id,
-            "name": "Pasta",
-            "recipe_type": "pasta",
-            "ingredients": ["pasta"],
-            "labels": ["italian"],
-            "prep_time_minutes": 10,
-            "cook_time_minutes": 20,
-            "rating": 5,
-        }
-        mock_db.get_recipe_by_id.return_value = mock_recipe
-        mock_db.get_all_user_interactions.return_value = [
-            {"recipe_id": recipe_id, "interaction_type": "liked", "value": None},
-            {"recipe_id": recipe_id, "interaction_type": "rated", "value": 4},
-        ]
-
-        service.set_context({"user_id": user_id})
-        result = service.get_recipe_details(recipe_id)
-
-        assert result["liked"] is True
-        assert result["cooked"] is False
-        assert result["user_rating"] == 4
-
-    def test_no_interactions_when_context_not_set(self, service, mock_db):
-        recipe_id = "recipe-123"
-        mock_recipe = {
-            "id": recipe_id,
-            "name": "Pasta",
-            "recipe_type": "pasta",
-            "ingredients": ["pasta"],
-            "labels": ["italian"],
-            "prep_time_minutes": 10,
-            "cook_time_minutes": 20,
-            "rating": 5,
-        }
-        mock_db.get_recipe_by_id.return_value = mock_recipe
-
-        result = service.get_recipe_details(recipe_id)
-
-        # Interactions should not be added when context not set
-        assert "liked" not in result
-        assert "cooked" not in result
-        assert "user_rating" not in result
-
-
 class TestToggleInteractions:
     """Test toggle interactions (like, cooked) - they share identical behavior."""
 
     @pytest.mark.parametrize(
-        "interaction_type,service_method,cache_attr",
+        "interaction_type,service_method",
         [
-            ("liked", "toggle_recipe_like", "_liked_recipes"),
-            ("cooked", "toggle_recipe_cooked", "_cooked_recipes"),
+            ("liked", "toggle_recipe_like"),
+            ("cooked", "toggle_recipe_cooked"),
         ],
     )
-    def test_add_interaction_when_not_present(self, service, mock_db, interaction_type, service_method, cache_attr):
+    def test_add_interaction_when_not_present(self, service, mock_db, interaction_type, service_method):
         recipe_id = "recipe-123"
         user_id = "user-456"
-        mock_db.get_all_user_interactions.return_value = []
         mock_db.has_interaction.return_value = False
         mock_db.add_interaction.return_value = {"id": "interaction-1"}
 
-        service.set_context({"user_id": user_id})
-        result = getattr(service, service_method)(recipe_id)
+        result = getattr(service, service_method)(recipe_id, user_id)
 
         assert result is True
-        assert recipe_id in getattr(service, cache_attr)
         mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
         mock_db.add_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
 
     @pytest.mark.parametrize(
-        "interaction_type,service_method,cache_attr",
+        "interaction_type,service_method",
         [
-            ("liked", "toggle_recipe_like", "_liked_recipes"),
-            ("cooked", "toggle_recipe_cooked", "_cooked_recipes"),
+            ("liked", "toggle_recipe_like"),
+            ("cooked", "toggle_recipe_cooked"),
         ],
     )
-    def test_remove_interaction_when_present(self, service, mock_db, interaction_type, service_method, cache_attr):
+    def test_remove_interaction_when_present(self, service, mock_db, interaction_type, service_method):
         recipe_id = "recipe-123"
         user_id = "user-456"
-        mock_db.get_all_user_interactions.return_value = [
-            {"recipe_id": recipe_id, "interaction_type": interaction_type, "value": None}
-        ]
         mock_db.has_interaction.return_value = True
         mock_db.remove_interaction.return_value = True
 
-        service.set_context({"user_id": user_id})
-        result = getattr(service, service_method)(recipe_id)
+        result = getattr(service, service_method)(recipe_id, user_id)
 
         assert result is False
-        assert recipe_id not in getattr(service, cache_attr)
         mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
         mock_db.remove_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
 
@@ -272,11 +227,15 @@ class TestToggleInteractions:
         "service_method",
         ["toggle_recipe_like", "toggle_recipe_cooked"],
     )
-    def test_requires_context(self, service, mock_db, service_method):
-        recipe_id = "recipe-123"
+    def test_recipe_not_found_on_fk_violation(self, service, mock_db, service_method):
+        recipe_id = "nonexistent"
+        user_id = "user-456"
+        mock_db.has_interaction.return_value = False
+        # DB layer raises NotFoundException for FK violations
+        mock_db.add_interaction.side_effect = NotFoundException("Referenced entity not found")
 
-        with pytest.raises(ValueError, match="User context not available"):
-            getattr(service, service_method)(recipe_id)
+        with pytest.raises(NotFoundException):
+            getattr(service, service_method)(recipe_id, user_id)
 
 
 class TestRateRecipe:
@@ -284,15 +243,12 @@ class TestRateRecipe:
         recipe_id = "recipe-123"
         user_id = "user-456"
         rating = 4
-        mock_db.get_all_user_interactions.return_value = []
         mock_db.has_interaction.return_value = False
         mock_db.add_interaction.return_value = {"id": "interaction-1"}
 
-        service.set_context({"user_id": user_id})
-        result = service.rate_recipe(recipe_id, rating)
+        result = service.rate_recipe(recipe_id, user_id, rating)
 
         assert result == 4
-        assert service._rated_recipes[recipe_id] == 4
         mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, "rated")
         mock_db.add_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=rating)
 
@@ -300,17 +256,12 @@ class TestRateRecipe:
         recipe_id = "recipe-123"
         user_id = "user-456"
         new_rating = 5
-        mock_db.get_all_user_interactions.return_value = [
-            {"recipe_id": recipe_id, "interaction_type": "rated", "value": 3}
-        ]
         mock_db.has_interaction.return_value = True
         mock_db.update_interaction.return_value = {"id": "interaction-1", "value": new_rating}
 
-        service.set_context({"user_id": user_id})
-        result = service.rate_recipe(recipe_id, new_rating)
+        result = service.rate_recipe(recipe_id, user_id, new_rating)
 
         assert result == 5
-        assert service._rated_recipes[recipe_id] == 5
         mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, "rated")
         mock_db.update_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=new_rating)
 
@@ -318,18 +269,19 @@ class TestRateRecipe:
     def test_invalid_rating_out_of_range(self, service, mock_db, invalid_rating):
         recipe_id = "recipe-123"
         user_id = "user-456"
-        mock_db.get_all_user_interactions.return_value = []
-
-        service.set_context({"user_id": user_id})
 
         with pytest.raises(ValueError, match="Rating must be between 1 and 5"):
-            service.rate_recipe(recipe_id, invalid_rating)
+            service.rate_recipe(recipe_id, user_id, invalid_rating)
 
-    def test_requires_context(self, service, mock_db):
-        recipe_id = "recipe-123"
+    def test_recipe_not_found_on_fk_violation(self, service, mock_db):
+        recipe_id = "nonexistent"
+        user_id = "user-456"
+        mock_db.has_interaction.return_value = False
+        # DB layer raises NotFoundException for FK violations
+        mock_db.add_interaction.side_effect = NotFoundException("Referenced entity not found")
 
-        with pytest.raises(ValueError, match="User context not available"):
-            service.rate_recipe(recipe_id, 4)
+        with pytest.raises(NotFoundException):
+            service.rate_recipe(recipe_id, user_id, 4)
 
 
 class TestListRecipesWithInteractions:
@@ -353,16 +305,15 @@ class TestListRecipesWithInteractions:
                 "cook_time_minutes": 25,
             },
         ]
-        mock_db.get_all_user_interactions.return_value = [
-            {"recipe_id": "recipe-1", "interaction_type": "liked", "value": None},
-            {"recipe_id": "recipe-2", "interaction_type": "cooked", "value": None},
-            {"recipe_id": "recipe-2", "interaction_type": "rated", "value": 5},
-        ]
+        mock_interactions = {
+            "recipe-1": {"liked": True, "cooked": False, "user_rating": None},
+            "recipe-2": {"liked": False, "cooked": True, "user_rating": 5},
+        }
         mock_db.find_recipes.return_value = mock_recipes
         mock_db.count_recipes.return_value = 2
+        mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
 
-        service.set_context({"user_id": user_id})
-        result = service.list_recipes()
+        result = service.list_recipes(user_id=user_id)
 
         assert result["items"][0]["liked"] is True
         assert result["items"][0]["cooked"] is False

@@ -1,7 +1,7 @@
 -- Create unified interactions table for recipes at user level
 CREATE TABLE app.recipe_user_interactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    recipe_id UUID NOT NULL,
+    recipe_id UUID NOT NULL REFERENCES app.recipes(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     interaction_type VARCHAR(20) NOT NULL CHECK (interaction_type IN ('liked', 'cooked', 'rated')),
     value INTEGER,

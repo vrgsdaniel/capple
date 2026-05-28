@@ -45,9 +45,8 @@ async def _handle_recipe_interaction(
     """Common handler for recipe interaction endpoints."""
     log.info(f"{operation_name} recipe {recipe_id} by user {current_user.id}")
     try:
-        recipe_service.set_context({"user_id": current_user.id})
-        interaction_fn(recipe_id, *args)
-        recipe = recipe_service.get_recipe_details(recipe_id)
+        interaction_fn(recipe_id, current_user.id, *args)
+        recipe = recipe_service.get_recipe_details(recipe_id, current_user.id)
         response = _to_recipe_details_response(recipe)
         log.info(f"Successfully {operation_name.lower()} recipe {recipe_id}")
         return response
@@ -72,8 +71,7 @@ async def get_recipe_details(
 ) -> RecipeDetailsResponse:
     log.info(f"Fetching recipe details for {recipe_id}")
     try:
-        recipe_service.set_context({"user_id": current_user.id})
-        recipe = recipe_service.get_recipe_details(recipe_id)
+        recipe = recipe_service.get_recipe_details(recipe_id, current_user.id)
         response = _to_recipe_details_response(recipe)
         log.info(f"Successfully fetched recipe details for {recipe_id}")
         return response
@@ -102,8 +100,8 @@ async def list_recipes(
 ) -> RecipeListResponse:
     log.info(f"Listing recipes with filters: search={search}, recipe_type={recipe_type}, page={page}")
     try:
-        recipe_service.set_context({"user_id": current_user.id})
         result = recipe_service.list_recipes(
+            user_id=current_user.id,
             search=search,
             recipe_type=recipe_type,
             labels=labels,
