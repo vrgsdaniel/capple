@@ -17,7 +17,7 @@ def service(mock_db):
 
 
 class TestGetRecipeDetails:
-    def test_success(self, service, mock_db):
+    def test_success_without_user(self, service, mock_db):
         recipe_id = "recipe-123"
         mock_recipe = {
             "id": recipe_id,
@@ -35,7 +35,35 @@ class TestGetRecipeDetails:
 
         assert result["name"] == "Pasta Carbonara"
         assert result["rating"] == 5
+        assert "liked" not in result
         mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
+        mock_db.get_recipe_interactions.assert_not_called()
+
+    def test_success_with_user(self, service, mock_db):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+        mock_recipe = {
+            "id": recipe_id,
+            "name": "Pasta Carbonara",
+            "recipe_type": "pasta",
+            "ingredients": ["pasta", "eggs", "bacon"],
+            "labels": ["italian"],
+            "prep_time_minutes": 10,
+            "cook_time_minutes": 20,
+            "rating": 5,
+        }
+        mock_interactions = {"liked": True, "cooked": False, "user_rating": 4}
+        mock_db.get_recipe_by_id.return_value = mock_recipe
+        mock_db.get_recipe_interactions.return_value = mock_interactions
+
+        result = service.get_recipe_details(recipe_id, user_id)
+
+        assert result["name"] == "Pasta Carbonara"
+        assert result["liked"] is True
+        assert result["cooked"] is False
+        assert result["user_rating"] == 4
+        mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
+        mock_db.get_recipe_interactions.assert_called_once_with(recipe_id, user_id)
 
     def test_not_found(self, service, mock_db):
         recipe_id = "nonexistent"
@@ -48,7 +76,7 @@ class TestGetRecipeDetails:
 
 
 class TestListRecipes:
-    def test_success_no_filters(self, service, mock_db):
+    def test_success_no_filters_without_user(self, service, mock_db):
         mock_recipes = [
             {
                 "id": "recipe-1",
@@ -68,8 +96,37 @@ class TestListRecipes:
         assert result["total"] == 1
         assert len(result["items"]) == 1
         assert result["items"][0]["name"] == "Pasta"
+        assert "liked" not in result["items"][0]
         assert result["page"] == 1
         assert result["limit"] == 20
+        mock_db.get_recipes_interactions_bulk.assert_not_called()
+
+    def test_success_with_user(self, service, mock_db):
+        user_id = "user-456"
+        mock_recipes = [
+            {
+                "id": "recipe-1",
+                "name": "Pasta",
+                "recipe_type": "pasta",
+                "labels": ["italian"],
+                "prep_time_minutes": 10,
+                "cook_time_minutes": 20,
+                "rating": 5,
+            }
+        ]
+        mock_interactions = {
+            "recipe-1": {"liked": True, "cooked": False, "user_rating": 4}
+        }
+        mock_db.find_recipes.return_value = mock_recipes
+        mock_db.count_recipes.return_value = 1
+        mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
+
+        result = service.list_recipes(user_id=user_id)
+
+        assert result["total"] == 1
+        assert result["items"][0]["liked"] is True
+        assert result["items"][0]["user_rating"] == 4
+        mock_db.get_recipes_interactions_bulk.assert_called_once_with(["recipe-1"], user_id)
 
     def test_pagination_defaults(self, service, mock_db):
         mock_recipes = []
@@ -123,3 +180,145 @@ class TestListRecipes:
         call_kwargs = mock_db.find_recipes.call_args[1]
         for key, value in expected_forwarded.items():
             assert call_kwargs[key] == value
+
+
+class TestToggleInteractions:
+    """Test toggle interactions (like, cooked) - they share identical behavior."""
+
+    @pytest.mark.parametrize(
+        "interaction_type,service_method",
+        [
+            ("liked", "toggle_recipe_like"),
+            ("cooked", "toggle_recipe_cooked"),
+        ],
+    )
+    def test_add_interaction_when_not_present(self, service, mock_db, interaction_type, service_method):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+        mock_db.has_interaction.return_value = False
+        mock_db.add_interaction.return_value = {"id": "interaction-1"}
+
+        result = getattr(service, service_method)(recipe_id, user_id)
+
+        assert result is True
+        mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
+        mock_db.add_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
+
+    @pytest.mark.parametrize(
+        "interaction_type,service_method",
+        [
+            ("liked", "toggle_recipe_like"),
+            ("cooked", "toggle_recipe_cooked"),
+        ],
+    )
+    def test_remove_interaction_when_present(self, service, mock_db, interaction_type, service_method):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+        mock_db.has_interaction.return_value = True
+        mock_db.remove_interaction.return_value = True
+
+        result = getattr(service, service_method)(recipe_id, user_id)
+
+        assert result is False
+        mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
+        mock_db.remove_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
+
+    @pytest.mark.parametrize(
+        "service_method",
+        ["toggle_recipe_like", "toggle_recipe_cooked"],
+    )
+    def test_recipe_not_found_on_fk_violation(self, service, mock_db, service_method):
+        recipe_id = "nonexistent"
+        user_id = "user-456"
+        mock_db.has_interaction.return_value = False
+        # DB layer raises NotFoundException for FK violations
+        mock_db.add_interaction.side_effect = NotFoundException("Referenced entity not found")
+
+        with pytest.raises(NotFoundException):
+            getattr(service, service_method)(recipe_id, user_id)
+
+
+class TestRateRecipe:
+    def test_rate_recipe_new_rating(self, service, mock_db):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+        rating = 4
+        mock_db.has_interaction.return_value = False
+        mock_db.add_interaction.return_value = {"id": "interaction-1"}
+
+        result = service.rate_recipe(recipe_id, user_id, rating)
+
+        assert result == 4
+        mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, "rated")
+        mock_db.add_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=rating)
+
+    def test_update_existing_rating(self, service, mock_db):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+        new_rating = 5
+        mock_db.has_interaction.return_value = True
+        mock_db.update_interaction.return_value = {"id": "interaction-1", "value": new_rating}
+
+        result = service.rate_recipe(recipe_id, user_id, new_rating)
+
+        assert result == 5
+        mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, "rated")
+        mock_db.update_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=new_rating)
+
+    @pytest.mark.parametrize("invalid_rating", [0, 6, -1, 100])
+    def test_invalid_rating_out_of_range(self, service, mock_db, invalid_rating):
+        recipe_id = "recipe-123"
+        user_id = "user-456"
+
+        with pytest.raises(ValueError, match="Rating must be between 1 and 5"):
+            service.rate_recipe(recipe_id, user_id, invalid_rating)
+
+    def test_recipe_not_found_on_fk_violation(self, service, mock_db):
+        recipe_id = "nonexistent"
+        user_id = "user-456"
+        mock_db.has_interaction.return_value = False
+        # DB layer raises NotFoundException for FK violations
+        mock_db.add_interaction.side_effect = NotFoundException("Referenced entity not found")
+
+        with pytest.raises(NotFoundException):
+            service.rate_recipe(recipe_id, user_id, 4)
+
+
+class TestListRecipesWithInteractions:
+    def test_includes_interactions_for_all_recipes(self, service, mock_db):
+        user_id = "user-456"
+        mock_recipes = [
+            {
+                "id": "recipe-1",
+                "name": "Pasta",
+                "recipe_type": "pasta",
+                "labels": [],
+                "prep_time_minutes": 10,
+                "cook_time_minutes": 20,
+            },
+            {
+                "id": "recipe-2",
+                "name": "Pizza",
+                "recipe_type": "italian",
+                "labels": [],
+                "prep_time_minutes": 15,
+                "cook_time_minutes": 25,
+            },
+        ]
+        mock_interactions = {
+            "recipe-1": {"liked": True, "cooked": False, "user_rating": None},
+            "recipe-2": {"liked": False, "cooked": True, "user_rating": 5},
+        }
+        mock_db.find_recipes.return_value = mock_recipes
+        mock_db.count_recipes.return_value = 2
+        mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
+
+        result = service.list_recipes(user_id=user_id)
+
+        assert result["items"][0]["liked"] is True
+        assert result["items"][0]["cooked"] is False
+        assert result["items"][0]["user_rating"] is None
+
+        assert result["items"][1]["liked"] is False
+        assert result["items"][1]["cooked"] is True
+        assert result["items"][1]["user_rating"] == 5

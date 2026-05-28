@@ -4,7 +4,7 @@ from supabase import Client
 from postgrest.exceptions import APIError
 
 from src.db.criteria import Criteria
-from src.errors import ConflictException
+from src.errors import ConflictException, NotFoundException
 
 
 class Store:
@@ -53,6 +53,8 @@ class Store:
         except APIError as e:
             if e.code == "23505":
                 raise ConflictException(f"Duplicate entry in {self._table_name}") from e
+            if e.code == "23503":
+                raise NotFoundException(f"Referenced entity not found for {self._table_name}") from e
             raise
         return result.data[0]
 

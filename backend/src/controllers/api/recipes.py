@@ -2,9 +2,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
+from src.controllers.api.users import get_current_user
 from src.db.db import DB, get_db
 from src.errors import NotFoundException
-from src.models.recipes import RecipeDetailsResponse, RecipeListItemResponse, RecipeListResponse
+from src.models.recipes import RateRecipeRequest, RecipeDetailsResponse, RecipeListItemResponse, RecipeListResponse
 from src.service.recipes import RecipeService
 from src.utils.general import http_error_response
 from src.utils.logger import logger as log
@@ -33,14 +34,45 @@ def _to_recipe_list_response(payload: dict) -> RecipeListResponse:
     )
 
 
+async def _handle_recipe_interaction(
+    recipe_id: str,
+    current_user: dict,
+    recipe_service: RecipeService,
+    interaction_fn: callable,
+    operation_name: str,
+    *args,
+) -> RecipeDetailsResponse:
+    """Common handler for recipe interaction endpoints."""
+    log.info(f"{operation_name} recipe {recipe_id} by user {current_user.id}")
+    try:
+        interaction_fn(recipe_id, current_user.id, *args)
+        recipe = recipe_service.get_recipe_details(recipe_id, current_user.id)
+        response = _to_recipe_details_response(recipe)
+        log.info(f"Successfully {operation_name.lower()} recipe {recipe_id}")
+        return response
+    except NotFoundException as e:
+        log.exception(f"Recipe not found: {recipe_id}")
+        raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        log.exception(f"Invalid input: {e}")
+        raise http_error_response(error_message=str(e), error_code=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        log.exception(f"Error {operation_name.lower()} recipe {recipe_id}: {e}")
+        raise http_error_response(
+            error_message="Internal server error", error_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
 @router.get("/api/recipes/{recipe_id}", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
 async def get_recipe_details(
     recipe_id: str,
-    service: Annotated[RecipeService, Depends(get_recipe_service)],
+    current_user: Annotated[dict, Depends(get_current_user)],
+    recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
     log.info(f"Fetching recipe details for {recipe_id}")
     try:
-        response = _to_recipe_details_response(service.get_recipe_details(recipe_id))
+        recipe = recipe_service.get_recipe_details(recipe_id, current_user.id)
+        response = _to_recipe_details_response(recipe)
         log.info(f"Successfully fetched recipe details for {recipe_id}")
         return response
     except NotFoundException as e:
@@ -55,6 +87,8 @@ async def get_recipe_details(
 
 @router.get("/api/recipes", status_code=status.HTTP_200_OK, response_model=RecipeListResponse)
 async def list_recipes(
+    current_user: Annotated[dict, Depends(get_current_user)],
+    recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
     search: Annotated[str | None, Query()] = None,
     recipe_type: Annotated[str | None, Query()] = None,
     labels: Annotated[list[str] | None, Query()] = None,
@@ -63,11 +97,11 @@ async def list_recipes(
     sort_order: Annotated[str, Query()] = "asc",
     page: Annotated[int, Query(ge=1)] = 1,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    service: Annotated[RecipeService, Depends(get_recipe_service)] = None,
 ) -> RecipeListResponse:
     log.info(f"Listing recipes with filters: search={search}, recipe_type={recipe_type}, page={page}")
     try:
-        result = service.list_recipes(
+        result = recipe_service.list_recipes(
+            user_id=current_user.id,
             search=search,
             recipe_type=recipe_type,
             labels=labels,
@@ -85,3 +119,37 @@ async def list_recipes(
         raise http_error_response(
             error_message="Internal server error", error_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@router.post("/api/recipes/{recipe_id}/like", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
+async def toggle_recipe_like(
+    recipe_id: str,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
+) -> RecipeDetailsResponse:
+    return await _handle_recipe_interaction(
+        recipe_id, current_user, recipe_service, recipe_service.toggle_recipe_like, "Toggling like for"
+    )
+
+
+@router.post("/api/recipes/{recipe_id}/cooked", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
+async def toggle_recipe_cooked(
+    recipe_id: str,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
+) -> RecipeDetailsResponse:
+    return await _handle_recipe_interaction(
+        recipe_id, current_user, recipe_service, recipe_service.toggle_recipe_cooked, "Toggling cooked for"
+    )
+
+
+@router.post("/api/recipes/{recipe_id}/rate", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
+async def rate_recipe(
+    recipe_id: str,
+    body: RateRecipeRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
+) -> RecipeDetailsResponse:
+    return await _handle_recipe_interaction(
+        recipe_id, current_user, recipe_service, recipe_service.rate_recipe, "Rating", body.rating
+    )
