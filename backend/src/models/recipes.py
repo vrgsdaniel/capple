@@ -33,6 +33,7 @@ class RecipeListItemResponse(BaseModel):
     prep_time_minutes: int
     cook_time_minutes: int
     rating: int | None = None
+    image_uri: str | None = None
 
 
 class RecipeListResponse(BaseModel):
