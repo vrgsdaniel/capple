@@ -1,4 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class RateRecipeRequest(BaseModel):
+    """Request to rate a recipe."""
+
+    rating: int = Field(..., ge=1, le=5, description="Rating from 1 to 5")
 
 
 class RecipeDetailsResponse(BaseModel):
@@ -21,6 +27,7 @@ class RecipeDetailsResponse(BaseModel):
     image_uri: str = ""
     liked: bool = False
     cooked: bool = False
+    user_rating: int | None = None
 
 
 class RecipeListItemResponse(BaseModel):
@@ -38,6 +45,7 @@ class RecipeListItemResponse(BaseModel):
     image_uri: str = ""
     liked: bool = False
     cooked: bool = False
+    user_rating: int | None = None
 
 
 class RecipeListResponse(BaseModel):

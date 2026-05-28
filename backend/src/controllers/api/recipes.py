@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query, status
 from src.controllers.api.users import get_current_user
 from src.db.db import DB, get_db
 from src.errors import NotFoundException
-from src.models.recipes import RecipeDetailsResponse, RecipeListItemResponse, RecipeListResponse
+from src.models.recipes import RateRecipeRequest, RecipeDetailsResponse, RecipeListItemResponse, RecipeListResponse
 from src.service.recipes import RecipeService
 from src.utils.general import http_error_response
 from src.utils.logger import logger as log
@@ -32,6 +32,36 @@ def _to_recipe_list_response(payload: dict) -> RecipeListResponse:
         page=payload["page"],
         limit=payload["limit"],
     )
+
+
+async def _handle_recipe_interaction(
+    recipe_id: str,
+    current_user: dict,
+    recipe_service: RecipeService,
+    interaction_fn: callable,
+    operation_name: str,
+    *args,
+) -> RecipeDetailsResponse:
+    """Common handler for recipe interaction endpoints."""
+    log.info(f"{operation_name} recipe {recipe_id} by user {current_user.id}")
+    try:
+        recipe_service.set_context({"user_id": current_user.id})
+        interaction_fn(recipe_id, *args)
+        recipe = recipe_service.get_recipe_details(recipe_id)
+        response = _to_recipe_details_response(recipe)
+        log.info(f"Successfully {operation_name.lower()} recipe {recipe_id}")
+        return response
+    except NotFoundException as e:
+        log.exception(f"Recipe not found: {recipe_id}")
+        raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
+    except ValueError as e:
+        log.exception(f"Invalid input: {e}")
+        raise http_error_response(error_message=str(e), error_code=status.HTTP_400_BAD_REQUEST)
+    except Exception as e:
+        log.exception(f"Error {operation_name.lower()} recipe {recipe_id}: {e}")
+        raise http_error_response(
+            error_message="Internal server error", error_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @router.get("/api/recipes/{recipe_id}", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
@@ -99,22 +129,9 @@ async def toggle_recipe_like(
     current_user: Annotated[dict, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
-    log.info(f"Toggling like for recipe {recipe_id} by user {current_user.id}")
-    try:
-        recipe_service.set_context({"user_id": current_user.id})
-        recipe_service.toggle_recipe_like(recipe_id)
-        recipe = recipe_service.get_recipe_details(recipe_id)
-        response = _to_recipe_details_response(recipe)
-        log.info(f"Successfully toggled like for recipe {recipe_id}")
-        return response
-    except NotFoundException as e:
-        log.exception(f"Recipe not found: {recipe_id}")
-        raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        log.exception(f"Error toggling like for recipe {recipe_id}: {e}")
-        raise http_error_response(
-            error_message="Internal server error", error_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return await _handle_recipe_interaction(
+        recipe_id, current_user, recipe_service, recipe_service.toggle_recipe_like, "Toggling like for"
+    )
 
 
 @router.post("/api/recipes/{recipe_id}/cooked", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
@@ -123,19 +140,18 @@ async def toggle_recipe_cooked(
     current_user: Annotated[dict, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
-    log.info(f"Toggling cooked for recipe {recipe_id} by user {current_user.id}")
-    try:
-        recipe_service.set_context({"user_id": current_user.id})
-        recipe_service.toggle_recipe_cooked(recipe_id)
-        recipe = recipe_service.get_recipe_details(recipe_id)
-        response = _to_recipe_details_response(recipe)
-        log.info(f"Successfully toggled cooked for recipe {recipe_id}")
-        return response
-    except NotFoundException as e:
-        log.exception(f"Recipe not found: {recipe_id}")
-        raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
-        log.exception(f"Error toggling cooked for recipe {recipe_id}: {e}")
-        raise http_error_response(
-            error_message="Internal server error", error_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
+    return await _handle_recipe_interaction(
+        recipe_id, current_user, recipe_service, recipe_service.toggle_recipe_cooked, "Toggling cooked for"
+    )
+
+
+@router.post("/api/recipes/{recipe_id}/rate", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
+async def rate_recipe(
+    recipe_id: str,
+    body: RateRecipeRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
+    recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
+) -> RecipeDetailsResponse:
+    return await _handle_recipe_interaction(
+        recipe_id, current_user, recipe_service, recipe_service.rate_recipe, "Rating", body.rating
+    )

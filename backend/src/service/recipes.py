@@ -9,12 +9,14 @@ class RecipeService:
         self._user_id = None
         self._liked_recipes = set()
         self._cooked_recipes = set()
+        self._rated_recipes = {}  # recipe_id -> rating value
 
     def set_context(self, context: dict | None):
         """Set execution context with user_id."""
         self._user_id = context.get("user_id") if context else None
         self._liked_recipes = set()
         self._cooked_recipes = set()
+        self._rated_recipes = {}
         if self._user_id:
             self._load_interactions()
 
@@ -23,6 +25,9 @@ class RecipeService:
         interactions = self.db.get_all_user_interactions(self._user_id)
         self._liked_recipes = {r["recipe_id"] for r in interactions if r["interaction_type"] == "liked"}
         self._cooked_recipes = {r["recipe_id"] for r in interactions if r["interaction_type"] == "cooked"}
+        self._rated_recipes = {
+            r["recipe_id"]: r["value"] for r in interactions if r["interaction_type"] == "rated" and r["value"]
+        }
 
     def _ensure_user_id(self) -> str:
         """Get user_id from context. Raises if context not set."""
@@ -40,6 +45,7 @@ class RecipeService:
         if self._user_id:
             recipe["liked"] = recipe_id in self._liked_recipes
             recipe["cooked"] = recipe_id in self._cooked_recipes
+            recipe["user_rating"] = self._rated_recipes.get(recipe_id)
 
         return recipe
 
@@ -76,6 +82,7 @@ class RecipeService:
             for recipe in recipes:
                 recipe["liked"] = recipe["id"] in self._liked_recipes
                 recipe["cooked"] = recipe["id"] in self._cooked_recipes
+                recipe["user_rating"] = self._rated_recipes.get(recipe["id"])
 
         # Get total count
         total = self.db.count_recipes(
@@ -119,3 +126,20 @@ class RecipeService:
             self.db.add_interaction(recipe_id, user_id, "cooked")
             self._cooked_recipes.add(recipe_id)
             return True
+
+    def rate_recipe(self, recipe_id: str, rating: int) -> int:
+        """Rate a recipe (1-5). Updates existing rating if present. Returns the rating value."""
+        user_id = self._ensure_user_id()
+
+        # Validate rating
+        if not 1 <= rating <= 5:
+            raise ValueError("Rating must be between 1 and 5")
+
+        # Update if exists, add if not
+        if self.db.has_interaction(recipe_id, user_id, "rated"):
+            self.db.update_interaction(recipe_id, user_id, "rated", value=rating)
+        else:
+            self.db.add_interaction(recipe_id, user_id, "rated", value=rating)
+
+        self._rated_recipes[recipe_id] = rating
+        return rating
