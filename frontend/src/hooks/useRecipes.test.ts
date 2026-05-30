@@ -4,10 +4,10 @@ import { useRecipes } from '@/hooks/useRecipes'
 
 jest.mock('@/lib/api', () => ({
   __esModule: true,
-  default: { get: jest.fn() },
+  default: { get: jest.fn(), post: jest.fn() },
 }))
 
-const mockedApi = api as unknown as { get: jest.Mock }
+const mockedApi = api as unknown as { get: jest.Mock; post: jest.Mock }
 
 function makeListItem(overrides = {}) {
   return {
@@ -19,6 +19,9 @@ function makeListItem(overrides = {}) {
     cook_time_minutes: 20,
     rating: 4,
     image_uri: 'https://example.com/pasta.jpg',
+    liked: false,
+    cooked: false,
+    user_rating: null,
     ...overrides,
   }
 }
@@ -32,6 +35,9 @@ function makeDetail(overrides = {}) {
     source_url: 'https://bonappetit.com/recipe/pasta',
     servings: 4,
     image_uri: 'https://example.com/pasta-hd.jpg',
+    liked: false,
+    cooked: false,
+    user_rating: null,
     ...overrides,
   }
 }
@@ -61,6 +67,21 @@ describe('useRecipes', () => {
     expect(r.rating).toBe(4)
     expect(r.tags).toEqual(['quick'])
     expect(r.image).toBe('https://example.com/pasta.jpg')
+    expect(r.saved).toBe(false)
+    expect(r.cooked).toBe(false)
+    expect(r.myRating).toBe(0)
+  })
+
+  it('maps liked/cooked/user_rating from list item', async () => {
+    mockList([makeListItem({ liked: true, cooked: true, user_rating: 3 })])
+    const { result } = renderHook(() => useRecipes())
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    const r = result.current.recipes[0]
+    expect(r.saved).toBe(true)
+    expect(r.cooked).toBe(true)
+    expect(r.myRating).toBe(3)
   })
 
   it('defaults rating to 0 when null', async () => {
@@ -128,6 +149,26 @@ describe('useRecipes', () => {
     })
   })
 
+  it('ensureDetails syncs liked/cooked/user_rating from detail', async () => {
+    mockList()
+    mockedApi.get.mockResolvedValueOnce({
+      data: makeDetail({ liked: true, cooked: true, user_rating: 5, rating: 4 }),
+    })
+
+    const { result } = renderHook(() => useRecipes())
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    await act(async () => {
+      await result.current.ensureDetails('r1')
+    })
+
+    const r = result.current.recipes[0]
+    expect(r.saved).toBe(true)
+    expect(r.cooked).toBe(true)
+    expect(r.myRating).toBe(5)
+    expect(r.rating).toBe(4)
+  })
+
   it('maps string ingredients in detail', async () => {
     mockList()
     mockedApi.get.mockResolvedValueOnce({
@@ -175,5 +216,108 @@ describe('useRecipes', () => {
     await act(async () => { await result.current.ensureDetails('r1') })
 
     expect(result.current.recipes[0].steps).toEqual(['Boil water', 'Cook pasta'])
+  })
+
+  describe('toggleLike', () => {
+    it('calls POST /like and updates saved from response', async () => {
+      mockList()
+      mockedApi.post.mockResolvedValueOnce({ data: makeDetail({ liked: true }) })
+
+      const { result } = renderHook(() => useRecipes())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      expect(result.current.recipes[0].saved).toBe(false)
+
+      await act(async () => {
+        await result.current.toggleLike('r1')
+      })
+
+      expect(mockedApi.post).toHaveBeenCalledWith('/api/recipes/r1/like')
+      expect(result.current.recipes[0].saved).toBe(true)
+    })
+
+    it('toggles saved back to false when API returns liked=false', async () => {
+      mockList([makeListItem({ liked: true })])
+      mockedApi.post.mockResolvedValueOnce({ data: makeDetail({ liked: false }) })
+
+      const { result } = renderHook(() => useRecipes())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.toggleLike('r1')
+      })
+
+      expect(result.current.recipes[0].saved).toBe(false)
+    })
+  })
+
+  describe('toggleCooked', () => {
+    it('calls POST /cooked and updates cooked from response', async () => {
+      mockList()
+      mockedApi.post.mockResolvedValueOnce({ data: makeDetail({ cooked: true }) })
+
+      const { result } = renderHook(() => useRecipes())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      expect(result.current.recipes[0].cooked).toBe(false)
+
+      await act(async () => {
+        await result.current.toggleCooked('r1')
+      })
+
+      expect(mockedApi.post).toHaveBeenCalledWith('/api/recipes/r1/cooked')
+      expect(result.current.recipes[0].cooked).toBe(true)
+    })
+
+    it('toggles cooked back to false when API returns cooked=false', async () => {
+      mockList([makeListItem({ cooked: true })])
+      mockedApi.post.mockResolvedValueOnce({ data: makeDetail({ cooked: false }) })
+
+      const { result } = renderHook(() => useRecipes())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.toggleCooked('r1')
+      })
+
+      expect(result.current.recipes[0].cooked).toBe(false)
+    })
+  })
+
+  describe('rateRecipe', () => {
+    it('calls POST /rate with rating and updates myRating and rating', async () => {
+      mockList()
+      mockedApi.post.mockResolvedValueOnce({
+        data: makeDetail({ user_rating: 4, rating: 3 }),
+      })
+
+      const { result } = renderHook(() => useRecipes())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.rateRecipe('r1', 4)
+      })
+
+      expect(mockedApi.post).toHaveBeenCalledWith('/api/recipes/r1/rate', { rating: 4 })
+      expect(result.current.recipes[0].myRating).toBe(4)
+      expect(result.current.recipes[0].rating).toBe(3)
+    })
+
+    it('defaults myRating to 0 when user_rating is null', async () => {
+      mockList()
+      mockedApi.post.mockResolvedValueOnce({
+        data: makeDetail({ user_rating: null, rating: null }),
+      })
+
+      const { result } = renderHook(() => useRecipes())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.rateRecipe('r1', 1)
+      })
+
+      expect(result.current.recipes[0].myRating).toBe(0)
+      expect(result.current.recipes[0].rating).toBe(0)
+    })
   })
 })

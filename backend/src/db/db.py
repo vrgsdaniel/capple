@@ -193,14 +193,14 @@ class DB:
         """Get interactions for multiple recipes. Returns dict mapping recipe_id -> {liked, cooked, user_rating}."""
         if not recipe_ids:
             return {}
-        
+
         interactions = self.store("recipe_user_interactions").find(
             Criteria().eq("user_id", user_id).in_("recipe_id", recipe_ids)
         )
-        
+
         # Initialize all recipes with no interactions
         result = {recipe_id: {"liked": False, "cooked": False, "user_rating": None} for recipe_id in recipe_ids}
-        
+
         # Populate with actual interactions
         for interaction in interactions:
             recipe_id = interaction["recipe_id"]
@@ -210,7 +210,7 @@ class DB:
                 result[recipe_id]["cooked"] = True
             elif interaction["interaction_type"] == "rated":
                 result[recipe_id]["user_rating"] = interaction.get("value")
-        
+
         return result
 
     def has_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
@@ -231,13 +231,19 @@ class DB:
             }
         )
 
-    def update_interaction(self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None) -> dict | None:
-        """Update a user recipe interaction."""
-        criteria = (
-            Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id).eq("interaction_type", interaction_type)
+    def upsert_interaction(
+        self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None
+    ) -> dict:
+        """Insert or update a user recipe interaction in a single DB call."""
+        return self.store("recipe_user_interactions").upsert(
+            {
+                "recipe_id": recipe_id,
+                "user_id": user_id,
+                "interaction_type": interaction_type,
+                "value": value,
+            },
+            on_conflict="user_id,recipe_id,interaction_type",
         )
-        result = self.store("recipe_user_interactions").update_where(criteria, {"value": value})
-        return result[0] if result else None
 
     def remove_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
         """Remove a user recipe interaction."""

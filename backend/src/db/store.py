@@ -58,6 +58,17 @@ class Store:
             raise
         return result.data[0]
 
+    def upsert(self, data: dict, on_conflict: str) -> dict:
+        """Insert or update on conflict. *on_conflict* is a comma-separated list of column names
+        that map to a unique constraint (used by PostgREST for ON CONFLICT targeting)."""
+        try:
+            result = self._table().upsert(data, on_conflict=on_conflict).execute()
+        except APIError as e:
+            if e.code == "23503":
+                raise NotFoundException(f"Referenced entity not found for {self._table_name}") from e
+            raise
+        return result.data[0]
+
     def update(self, entity_id: str, data: dict) -> dict | None:
         result = self._table().update(data).eq("id", entity_id).execute()
         return result.data[0] if result.data else None
