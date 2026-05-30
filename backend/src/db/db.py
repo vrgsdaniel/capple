@@ -245,16 +245,6 @@ class DB:
             on_conflict="user_id,recipe_id,interaction_type",
         )
 
-    def update_interaction(
-        self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None
-    ) -> dict | None:
-        """Update a user recipe interaction."""
-        criteria = (
-            Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id).eq("interaction_type", interaction_type)
-        )
-        result = self.store("recipe_user_interactions").update_where(criteria, {"value": value})
-        return result[0] if result else None
-
     def remove_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
         """Remove a user recipe interaction."""
         criteria = (
