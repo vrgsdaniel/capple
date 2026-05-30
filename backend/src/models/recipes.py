@@ -23,11 +23,12 @@ class RecipeDetailsResponse(BaseModel):
     source_name: str = ""
     source_url: str = ""
     servings: int | None = None
-    rating: int | None = None
+    rating: float | None = None
     image_uri: str = ""
     liked: bool = False
     cooked: bool = False
     user_rating: int | None = None
+    num_ratings: int = 0
 
 
 class RecipeListItemResponse(BaseModel):
@@ -41,11 +42,12 @@ class RecipeListItemResponse(BaseModel):
     labels: list
     prep_time_minutes: int
     cook_time_minutes: int
-    rating: int | None = None
+    rating: float | None = None
     image_uri: str = ""
     liked: bool = False
     cooked: bool = False
     user_rating: int | None = None
+    num_ratings: int = 0
 
 
 class RecipeListResponse(BaseModel):

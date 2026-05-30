@@ -114,9 +114,7 @@ class TestListRecipes:
                 "rating": 5,
             }
         ]
-        mock_interactions = {
-            "recipe-1": {"liked": True, "cooked": False, "user_rating": 4}
-        }
+        mock_interactions = {"recipe-1": {"liked": True, "cooked": False, "user_rating": 4}}
         mock_db.find_recipes.return_value = mock_recipes
         mock_db.count_recipes.return_value = 1
         mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
@@ -239,49 +237,26 @@ class TestToggleInteractions:
 
 
 class TestRateRecipe:
-    def test_rate_recipe_new_rating(self, service, mock_db):
+    def test_rate_recipe_calls_upsert(self, service, mock_db):
         recipe_id = "recipe-123"
         user_id = "user-456"
-        rating = 4
-        mock_db.has_interaction.return_value = False
-        mock_db.add_interaction.return_value = {"id": "interaction-1"}
+        mock_db.upsert_interaction.return_value = {"id": "interaction-1"}
 
-        result = service.rate_recipe(recipe_id, user_id, rating)
+        result = service.rate_recipe(recipe_id, user_id, 4)
 
         assert result == 4
-        mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, "rated")
-        mock_db.add_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=rating)
-
-    def test_update_existing_rating(self, service, mock_db):
-        recipe_id = "recipe-123"
-        user_id = "user-456"
-        new_rating = 5
-        mock_db.has_interaction.return_value = True
-        mock_db.update_interaction.return_value = {"id": "interaction-1", "value": new_rating}
-
-        result = service.rate_recipe(recipe_id, user_id, new_rating)
-
-        assert result == 5
-        mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, "rated")
-        mock_db.update_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=new_rating)
+        mock_db.upsert_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=4)
 
     @pytest.mark.parametrize("invalid_rating", [0, 6, -1, 100])
     def test_invalid_rating_out_of_range(self, service, mock_db, invalid_rating):
-        recipe_id = "recipe-123"
-        user_id = "user-456"
-
         with pytest.raises(ValueError, match="Rating must be between 1 and 5"):
-            service.rate_recipe(recipe_id, user_id, invalid_rating)
+            service.rate_recipe("recipe-123", "user-456", invalid_rating)
 
     def test_recipe_not_found_on_fk_violation(self, service, mock_db):
-        recipe_id = "nonexistent"
-        user_id = "user-456"
-        mock_db.has_interaction.return_value = False
-        # DB layer raises NotFoundException for FK violations
-        mock_db.add_interaction.side_effect = NotFoundException("Referenced entity not found")
+        mock_db.upsert_interaction.side_effect = NotFoundException("Referenced entity not found")
 
         with pytest.raises(NotFoundException):
-            service.rate_recipe(recipe_id, user_id, 4)
+            service.rate_recipe("nonexistent", "user-456", 4)
 
 
 class TestListRecipesWithInteractions:

@@ -41,10 +41,12 @@ interface Props {
   recipe: Recipe | null
   open: boolean
   onClose: () => void
-  onUpdate: (id: string, patch: Partial<Recipe>) => void
+  onToggleLike: (id: string) => void
+  onToggleCooked: (id: string) => void
+  onRate: (id: string, rating: number) => void
 }
 
-export default function RecipeSheet({ recipe, open, onClose, onUpdate }: Props) {
+export default function RecipeSheet({ recipe, open, onClose, onToggleLike, onToggleCooked, onRate }: Props) {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -55,14 +57,6 @@ export default function RecipeSheet({ recipe, open, onClose, onUpdate }: Props) 
 
   if (!recipe) return null
   const r = recipe
-
-  function handleLogCook() {
-    onUpdate(r.id, {
-      cooked: true,
-      cookedCount: (r.cookedCount || 0) + 1,
-      lastCooked: new Date().toISOString().slice(0, 10),
-    })
-  }
 
   const lastCookedLabel = r.lastCooked
     ? new Date(r.lastCooked).toLocaleDateString('en-GB', {
@@ -148,19 +142,19 @@ export default function RecipeSheet({ recipe, open, onClose, onUpdate }: Props) 
             <button
               type="button"
               className={`meals-action-btn save-action${r.saved ? ' active' : ''}`}
-              onClick={() => onUpdate(r.id, { saved: !r.saved })}
+              onClick={() => onToggleLike(r.id)}
             >
               <Heart
                 size={20}
                 strokeWidth={1.75}
                 fill={r.saved ? 'currentColor' : 'none'}
               />
-              <span>{r.saved ? 'Loved' : 'Save'}</span>
+              <span>{r.saved ? 'Saved' : 'Like'}</span>
             </button>
             <button
               type="button"
               className={`meals-action-btn cook-action${r.cooked ? ' active' : ''}`}
-              onClick={handleLogCook}
+              onClick={() => onToggleCooked(r.id)}
             >
               <ChefHat
                 size={20}
@@ -180,24 +174,14 @@ export default function RecipeSheet({ recipe, open, onClose, onUpdate }: Props) 
 
           {/* Your rating */}
           <div className="meals-detail-section">
-            <div className="meals-detail-section-head">
-              <h2 className="meals-detail-section-title">Your rating</h2>
-              {r.myRating > 0 && (
-                <button
-                  type="button"
-                  className="meals-btn ghost"
-                  style={{ padding: '4px 8px', fontSize: 12, color: 'var(--m-fg-3)' }}
-                  onClick={() => onUpdate(r.id, { myRating: 0 })}
-                >
-                  Clear
-                </button>
-              )}
+              <div className="meals-detail-section-head">
+                <h2 className="meals-detail-section-title">Your rating</h2>
+              </div>
+              <StarInput
+                value={r.myRating || 0}
+                onChange={v => onRate(r.id, v)}
+              />
             </div>
-            <StarInput
-              value={r.myRating || 0}
-              onChange={v => onUpdate(r.id, { myRating: v })}
-            />
-          </div>
 
           {/* Ingredients */}
           {r.ingredients.length > 0 && (

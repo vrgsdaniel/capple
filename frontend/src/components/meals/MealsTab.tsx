@@ -62,7 +62,7 @@ function SortDropdown({ value, onChange }: SortDropdownProps) {
 }
 
 export default function MealsTab() {
-  const { recipes, loading, error, updateRecipe, ensureDetails } = useRecipes()
+  const { recipes, loading, error, ensureDetails, toggleLike, toggleCooked, rateRecipe } = useRecipes()
 
   const [search, setSearch] = useState('')
   const [mealFilters, setMealFilters] = useState<string[]>([])
@@ -73,21 +73,6 @@ export default function MealsTab() {
 
   function toggleArr(arr: string[], setArr: (v: string[]) => void, v: string) {
     setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v])
-  }
-
-  function handleLogCook(id: string) {
-    const r = recipes.find(x => x.id === id)
-    if (!r) return
-    updateRecipe(id, {
-      cooked: true,
-      cookedCount: (r.cookedCount || 0) + 1,
-      lastCooked: new Date().toISOString().slice(0, 10),
-    })
-  }
-
-  function handleToggleSave(id: string) {
-    const r = recipes.find(x => x.id === id)
-    if (r) updateRecipe(id, { saved: !r.saved })
   }
 
   function handleOpenRecipe(id: string) {
@@ -270,8 +255,7 @@ export default function MealsTab() {
               key={r.id}
               recipe={r}
               onOpen={handleOpenRecipe}
-              onToggleSave={handleToggleSave}
-              onLogCook={handleLogCook}
+              onToggleLike={toggleLike}
             />
           ))}
         </div>
@@ -282,7 +266,9 @@ export default function MealsTab() {
         recipe={activeRecipe}
         open={!!activeId}
         onClose={() => setActiveId(null)}
-        onUpdate={updateRecipe}
+        onToggleLike={toggleLike}
+        onToggleCooked={toggleCooked}
+        onRate={rateRecipe}
       />
     </div>
   )

@@ -92,14 +92,9 @@ class RecipeService:
             return True
 
     def rate_recipe(self, recipe_id: str, user_id: str, rating: int) -> int:
-        """Rate a recipe (1-5). Updates existing rating if present. Returns the rating value."""
-        # Validate rating
+        """Rate a recipe (1-5). The DB trigger keeps recipes.rating and num_ratings in sync."""
         if not 1 <= rating <= 5:
             raise ValueError("Rating must be between 1 and 5")
 
-        # Update if exists, add if not
-        if self.db.has_interaction(recipe_id, user_id, "rated"):
-            self.db.update_interaction(recipe_id, user_id, "rated", value=rating)
-        else:
-            self.db.add_interaction(recipe_id, user_id, "rated", value=rating)
+        self.db.upsert_interaction(recipe_id, user_id, "rated", value=rating)
         return rating

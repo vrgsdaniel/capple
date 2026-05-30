@@ -13,6 +13,9 @@ interface ApiListItem {
   cook_time_minutes: number
   rating: number | null
   image_uri: string | null
+  liked: boolean
+  cooked: boolean
+  user_rating: number | null
 }
 
 interface ApiDetail extends ApiListItem {
@@ -53,9 +56,9 @@ function fromListItem(item: ApiListItem): Recipe {
     difficulty: 'easy',
     time: (item.prep_time_minutes ?? 0) + (item.cook_time_minutes ?? 0),
     rating: item.rating ?? 0,
-    myRating: 0,
-    saved: false,
-    cooked: false,
+    myRating: item.user_rating ?? 0,
+    saved: item.liked,
+    cooked: item.cooked,
     cookedCount: 0,
     lastCooked: null,
     servings: 2,
@@ -84,6 +87,10 @@ function detailPatch(detail: ApiDetail): Partial<Recipe> {
   return {
     image: detail.image_uri ?? '',
     servings: detail.servings ?? 2,
+    rating: detail.rating ?? 0,
+    saved: detail.liked,
+    cooked: detail.cooked,
+    myRating: detail.user_rating ?? 0,
     ingredients: (detail.ingredients ?? []).map(ing => {
       if (typeof ing === 'string') return { qty: '', name: ing }
       const obj = ing as Record<string, string>
@@ -129,5 +136,20 @@ export function useRecipes() {
     }
   }
 
-  return { recipes, loading, error, updateRecipe, ensureDetails }
+  async function toggleLike(id: string): Promise<void> {
+    const res = await api.post<ApiDetail>(`/api/recipes/${id}/like`)
+    updateRecipe(id, { saved: res.data.liked })
+  }
+
+  async function toggleCooked(id: string): Promise<void> {
+    const res = await api.post<ApiDetail>(`/api/recipes/${id}/cooked`)
+    updateRecipe(id, { cooked: res.data.cooked })
+  }
+
+  async function rateRecipe(id: string, rating: number): Promise<void> {
+    const res = await api.post<ApiDetail>(`/api/recipes/${id}/rate`, { rating })
+    updateRecipe(id, { myRating: res.data.user_rating ?? 0, rating: res.data.rating ?? 0 })
+  }
+
+  return { recipes, loading, error, updateRecipe, ensureDetails, toggleLike, toggleCooked, rateRecipe }
 }

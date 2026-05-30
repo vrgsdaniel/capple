@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Clock, Heart, ChefHat } from 'lucide-react'
+import { Clock, Heart } from 'lucide-react'
 import { StarDisplay } from './StarRating'
 import type { Recipe } from '@/types/meals'
 
@@ -31,11 +31,10 @@ function Thumb({ recipe }: ThumbProps) {
 interface Props {
   recipe: Recipe
   onOpen: (id: string) => void
-  onToggleSave: (id: string) => void
-  onLogCook: (id: string) => void
+  onToggleLike: (id: string) => void
 }
 
-export default function RecipeCard({ recipe, onOpen, onToggleSave, onLogCook }: Props) {
+export default function RecipeCard({ recipe, onOpen, onToggleLike }: Props) {
   return (
     <div className="meals-card" onClick={() => onOpen(recipe.id)}>
       <div className="meals-card-thumb">
@@ -43,21 +42,9 @@ export default function RecipeCard({ recipe, onOpen, onToggleSave, onLogCook }: 
         <div className="meals-card-overlay" onClick={e => e.stopPropagation()}>
           <button
             type="button"
-            className={`meals-icon-btn${recipe.cooked ? ' cooked' : ''}`}
-            onClick={() => onLogCook(recipe.id)}
-            title={recipe.cooked ? 'Cooked' : 'Mark cooked'}
-          >
-            <ChefHat
-              size={15}
-              strokeWidth={1.75}
-              fill={recipe.cooked ? 'currentColor' : 'none'}
-            />
-          </button>
-          <button
-            type="button"
             className={`meals-icon-btn${recipe.saved ? ' saved' : ''}`}
-            onClick={() => onToggleSave(recipe.id)}
-            title={recipe.saved ? 'Saved' : 'Save'}
+            onClick={() => onToggleLike(recipe.id)}
+            title={recipe.saved ? 'Liked' : 'Like'}
           >
             <Heart
               size={15}
