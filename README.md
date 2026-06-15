@@ -1,6 +1,6 @@
 # Capple
 
-Capple is a household planning app for couples. It helps partners coordinate daily life through shared context: social battery tracking, household membership, and AI-assisted chat.
+Capple is a household planning app for couples. It helps partners coordinate daily life through shared context: social battery tracking, shared meals and recipes, a collaborative grocery list, and AI-assisted chat.
 
 ## Product Direction
 
@@ -17,9 +17,11 @@ The current focus is reliability and useful core flows before expanding into bro
 Implemented now:
 
 - Supabase auth + profile/household foundation
-- Social battery logging
-- Battery trend charting in the frontend
-- FastAPI backend with service/controller architecture
+- Social battery logging with trend charting
+- Recipe catalog with search, filtering, sorting, ratings, and cook tracking
+- Shared grocery list: add items, mark bought, history with re-add, realtime sync across household members
+- Recipe → grocery list integration (add all ingredients or individual items from a recipe sheet)
+- FastAPI backend with service/controller/db layering
 - LangGraph-powered chat flow with household-aware context assembly
 - Supabase migrations and local migration workflow
 
@@ -33,9 +35,9 @@ In progress:
 Frontend:
 
 - React + TypeScript + Vite
-- TanStack Query
-- Supabase JS client
+- Supabase JS client (auth + Realtime)
 - Recharts
+- shadcn/ui + Tailwind CSS
 
 Backend:
 
@@ -70,6 +72,7 @@ capple/
       hooks/
       pages/
       providers/
+      types/
   infra/
     supabase/
       migrations/
@@ -187,9 +190,11 @@ cd frontend && pnpm run lint
 - Add household-level routines/check-ins
 - Introduce saved chat context and useful conversation memory controls
 
-### Phase 3: Meals and Groceries (Planned)
+### Phase 3: Meals and Groceries (Largely done)
 
-- Shared grocery list with realtime sync
+- ~~Shared grocery list with realtime sync~~ ✓
+- ~~Recipe catalog with filtering, ratings, and cook tracking~~ ✓
+- ~~Recipe → grocery list integration~~ ✓
 - Pantry model and low-stock reminders
 - Recipe suggestion flow tied to pantry + battery context
 
@@ -207,9 +212,11 @@ cd frontend && pnpm run lint
 
 ## Development Notes
 
-- Backend follows a controller -> service -> db layering approach.
+- Backend follows a controller → service → db layering approach.
 - Data access uses a Store + Criteria pattern for query composition.
 - Chat orchestration runs through LangGraph state transitions.
+- Frontend data fetching uses custom hooks (`useState` + `useEffect` + `useCallback`), not TanStack Query.
+- Supabase Realtime subscriptions use `schema: 'app'` and live in dedicated `use*Realtime` hooks.
 
 ## License
 
