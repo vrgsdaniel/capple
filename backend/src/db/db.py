@@ -1,3 +1,5 @@
+import re
+
 from supabase import create_client, Client
 from src.settings import get_supabase_settings
 from src.db.criteria import Criteria
@@ -15,6 +17,10 @@ class DB:
     def store(self, table_name: str) -> Store:
         """Return a :class:`Store` bound to *table_name*."""
         return Store(self.client, table_name, schema_name=self._APP_SCHEMA)
+
+    @staticmethod
+    def _normalize_grocery_name(name: str) -> str:
+        return re.sub(r"\s+", " ", str(name or "").lower().strip())
 
     def is_alive(self) -> bool:
         try:
@@ -253,6 +259,71 @@ class DB:
 
         result = self.store("recipe_user_interactions").delete_where(criteria)
         return len(result) > 0
+
+    # --- grocery items ---
+
+    def find_grocery_items(self, household_id: str, bought: bool, limit: int | None = None) -> list[dict]:
+        criteria = (
+            Criteria().eq("household_id", household_id).eq("bought", bought).order("created_at", ascending=False)
+        )
+        if limit is not None:
+            criteria = criteria.limit(limit)
+        return self.store("grocery_items").find(criteria)
+
+    def find_active_grocery_item(self, household_id: str, norm_name: str) -> dict | None:
+        return self.store("grocery_items").find_one(
+            Criteria().eq("household_id", household_id).eq("bought", False).eq("normalized_name", norm_name)
+        )
+
+    def get_grocery_item(self, item_id: str, household_id: str) -> dict | None:
+        return self.store("grocery_items").find_one(Criteria().eq("id", item_id).eq("household_id", household_id))
+
+    def create_grocery_item(
+        self,
+        household_id: str,
+        name: str,
+        qty: str | None = None,
+        added_by: str | None = None,
+        source_recipe_id: str | None = None,
+    ) -> dict:
+        data: dict = {
+            "household_id": household_id,
+            "name": name,
+            "normalized_name": self._normalize_grocery_name(name),
+        }
+        if qty is not None:
+            data["qty"] = qty
+        if added_by is not None:
+            data["added_by"] = added_by
+        if source_recipe_id is not None:
+            data["source_recipe_id"] = source_recipe_id
+        return self.store("grocery_items").insert(data)
+
+    def update_grocery_item(self, item_id: str, data: dict, household_id: str | None = None) -> dict | None:
+        update_data = dict(data)
+        if "name" in update_data and isinstance(update_data["name"], str):
+            update_data["normalized_name"] = self._normalize_grocery_name(update_data["name"])
+        criteria = Criteria().eq("id", item_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        result = self.store("grocery_items").update_where(criteria, update_data)
+        return result[0] if result else None
+
+    def delete_grocery_item(self, item_id: str, household_id: str | None = None) -> bool:
+        criteria = Criteria().eq("id", item_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        result = self.store("grocery_items").delete_where(criteria)
+        return len(result) > 0
+
+    def get_recipe_titles_by_ids(self, recipe_ids: list[str]) -> dict[str, str]:
+        if not recipe_ids:
+            return {}
+        rows = self.store("recipes").find(Criteria().in_("id", recipe_ids).select("id,name"))
+        return {row["id"]: row["name"] for row in rows}
+
+    def delete_bought_grocery_items(self, household_id: str) -> None:
+        self.store("grocery_items").delete_where(Criteria().eq("household_id", household_id).eq("bought", True))
 
 
 def get_db() -> DB:
