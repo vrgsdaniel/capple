@@ -33,27 +33,31 @@ export default function HistorySection({ items, onReAdd, onClearHistory }: Props
   return (
     <div className="mt-6 border-t border-[#25292c] pt-4">
       {/* collapsible header */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="flex w-full items-center gap-2 text-[#6e7378] hover:text-[#a8adb1] transition-colors"
-      >
-        <ShoppingCart size={14} />
-        <span className="text-sm">Recently bought · {items.length}</span>
-        <ChevronDown
-          size={14}
-          className="ml-auto transition-transform duration-150"
-          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        />
+      <div className="flex w-full items-center gap-2 text-[#6e7378]">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-[#a8adb1] transition-colors"
+        >
+          <ShoppingCart size={14} />
+          <span className="text-sm">Recently bought · {items.length}</span>
+          <ChevronDown
+            size={14}
+            className="ml-auto transition-transform duration-150"
+            style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </button>
         {open && (
           <button
-            onClick={e => { e.stopPropagation(); handleClear() }}
+            type="button"
+            onClick={handleClear}
             disabled={clearing}
             className="ml-2 text-xs text-[#6e7378] hover:text-[#ff5e7a] transition-colors disabled:opacity-40"
           >
             Clear
           </button>
         )}
-      </button>
+      </div>
 
       {/* history rows */}
       {open && (

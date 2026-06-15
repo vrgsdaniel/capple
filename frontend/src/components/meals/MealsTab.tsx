@@ -3,7 +3,7 @@ import { Search, X, ArrowDownUp, ChevronDown, Check } from 'lucide-react'
 import RecipeCard from './RecipeCard'
 import RecipeSheet from './RecipeSheet'
 import { useRecipes } from '@/hooks/useRecipes'
-import { useAddToGroceries } from '@/hooks/useAddToGroceries'
+import { useGroceryList } from '@/hooks/useGroceryList'
 import type { SortKey } from '@/types/meals'
 import { MEAL_TYPES, DIFFICULTIES, TIME_BUCKETS, SORT_OPTIONS, fuzzyMatch } from '@/types/meals'
 import './meals.css'
@@ -64,7 +64,7 @@ function SortDropdown({ value, onChange }: SortDropdownProps) {
 
 export default function MealsTab() {
   const { recipes, loading, error, ensureDetails, toggleLike, toggleCooked, rateRecipe } = useRecipes()
-  const { addFromRecipe } = useAddToGroceries()
+  const { addFromRecipe } = useGroceryList()
 
   const [search, setSearch] = useState('')
   const [mealFilters, setMealFilters] = useState<string[]>([])
