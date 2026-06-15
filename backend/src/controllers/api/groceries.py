@@ -54,7 +54,8 @@ async def add_from_recipe(
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> list[GroceryItemResponse]:
     try:
-        return service.add_from_recipe(current_user.id, body.recipe_id, body.ingredients)
+        ingredients = [{"name": ingredient.name, "qty": ingredient.qty} for ingredient in body.ingredients]
+        return service.add_from_recipe(current_user.id, body.recipe_id, ingredients)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
 

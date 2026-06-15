@@ -5,16 +5,29 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class AddGroceryItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(..., min_length=1)
+    qty: str | None = None
+
+
+class AddFromRecipeIngredientRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1)
     qty: str | None = None
 
 
 class AddFromRecipeRequest(BaseModel):
-    recipe_id: str
-    ingredients: list[dict]
+    model_config = ConfigDict(extra="forbid")
+
+    recipe_id: str = Field(..., min_length=1)
+    ingredients: list[AddFromRecipeIngredientRequest]
 
 
 class PatchGroceryItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     bought: bool
 
 

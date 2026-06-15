@@ -115,9 +115,7 @@ class TestAddFromRecipe:
 
         assert resp.status_code == 201
         assert len(resp.json()) == 1
-        mock_service.add_from_recipe.assert_called_once_with(
-            FAKE_USER_ID, FAKE_RECIPE_ID, payload["ingredients"]
-        )
+        mock_service.add_from_recipe.assert_called_once_with(FAKE_USER_ID, FAKE_RECIPE_ID, payload["ingredients"])
 
     def test_returns_404_when_no_household(self, client, mock_service):
         mock_service.add_from_recipe.side_effect = NotFoundException("No household.")
@@ -128,6 +126,30 @@ class TestAddFromRecipe:
         )
 
         assert resp.status_code == 404
+
+    def test_returns_422_when_ingredient_name_missing(self, client, mock_service):
+        resp = client.post(
+            "/api/grocery-items/from-recipe",
+            json={
+                "recipe_id": FAKE_RECIPE_ID,
+                "ingredients": [{"qty": "200 ml"}],
+            },
+        )
+
+        assert resp.status_code == 422
+        mock_service.add_from_recipe.assert_not_called()
+
+    def test_returns_422_when_ingredient_is_not_object(self, client, mock_service):
+        resp = client.post(
+            "/api/grocery-items/from-recipe",
+            json={
+                "recipe_id": FAKE_RECIPE_ID,
+                "ingredients": ["Milk"],
+            },
+        )
+
+        assert resp.status_code == 422
+        mock_service.add_from_recipe.assert_not_called()
 
 
 class TestPatchGroceryItem:

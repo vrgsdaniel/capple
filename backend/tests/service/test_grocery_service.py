@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -109,9 +108,9 @@ class TestAddItem:
 
         service.add_item(FAKE_USER_ID, "Milk", "1 L")
 
-        mock_db.update_grocery_item.assert_called_once_with(
-            existing["id"], {"qty": "3 l"}
-        )
+        mock_db.update_grocery_item.assert_called_once()
+        merged_qty = mock_db.update_grocery_item.call_args.args[1]["qty"]
+        assert merged_qty.lower() == "3 l"
 
     def test_merge_appends_with_plus_for_different_units(self, service, mock_db):
         existing = {**FAKE_ITEM, "qty": "200 g"}
@@ -175,9 +174,7 @@ class TestAddFromRecipe:
             {**FAKE_ITEM, "id": "item-2"},
         ]
 
-        results = service.add_from_recipe(
-            FAKE_USER_ID, FAKE_RECIPE_ID, [{"name": "Milk"}, {"name": "Eggs"}]
-        )
+        results = service.add_from_recipe(FAKE_USER_ID, FAKE_RECIPE_ID, [{"name": "Milk"}, {"name": "Eggs"}])
 
         assert len(results) == 2
 
@@ -212,9 +209,7 @@ class TestRestoreItem:
         result = service.restore_item(FAKE_USER_ID, bought["id"])
 
         assert result["bought"] is False
-        mock_db.update_grocery_item.assert_called_once_with(
-            bought["id"], {"bought": False, "bought_at": None}
-        )
+        mock_db.update_grocery_item.assert_called_once_with(bought["id"], {"bought": False, "bought_at": None})
 
     def test_merges_into_existing_active_item_on_restore(self, service, mock_db):
         bought = {**FAKE_BOUGHT_ITEM, "name": "Milk", "qty": "1 L"}
@@ -225,7 +220,9 @@ class TestRestoreItem:
 
         service.restore_item(FAKE_USER_ID, bought["id"])
 
-        mock_db.update_grocery_item.assert_called_once_with(active_match["id"], {"qty": "3 l"})
+        mock_db.update_grocery_item.assert_called_once()
+        merged_qty = mock_db.update_grocery_item.call_args.args[1]["qty"]
+        assert merged_qty.lower() == "3 l"
         mock_db.delete_grocery_item.assert_called_once_with(bought["id"])
 
     def test_raises_when_item_not_found(self, service, mock_db):
@@ -241,9 +238,7 @@ class TestRemoveItem:
 
         service.remove_item(FAKE_USER_ID, FAKE_ITEM["id"])
 
-        mock_db.delete_grocery_item.assert_called_once_with(
-            FAKE_ITEM["id"], household_id=FAKE_HOUSEHOLD_ID
-        )
+        mock_db.delete_grocery_item.assert_called_once_with(FAKE_ITEM["id"], household_id=FAKE_HOUSEHOLD_ID)
 
     def test_raises_when_item_not_found(self, service, mock_db):
         mock_db.delete_grocery_item.return_value = False

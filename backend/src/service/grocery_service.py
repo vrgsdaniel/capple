@@ -93,11 +93,16 @@ class GroceryService:
         merged = 0
         created = 0
         for ing in ingredients:
-            ing_name = ing.get("name", "").strip()
+            raw_name = ing.get("name")
+            if not isinstance(raw_name, str):
+                skipped += 1
+                continue
+            ing_name = raw_name.strip()
             if not ing_name:
                 skipped += 1
                 continue
-            ing_qty = ing.get("qty") or None
+            raw_qty = ing.get("qty")
+            ing_qty = raw_qty if isinstance(raw_qty, str) and raw_qty else None
             key = _norm_name(ing_name)
             existing = self.db.find_active_grocery_item(household_id, key)
             if existing:
