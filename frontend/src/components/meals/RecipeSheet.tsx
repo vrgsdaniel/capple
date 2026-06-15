@@ -48,14 +48,24 @@ interface Props {
 }
 
 export default function RecipeSheet({ recipe, open, onClose, onToggleLike, onToggleCooked, onRate, onAddToList }: Props) {
-  const [listStatus, setListStatus] = useState<'idle' | 'loading' | 'done'>('idle')
-  const [addedIngredients, setAddedIngredients] = useState<Set<number>>(new Set())
+  // Co-locate recipe ID with grocery state so we can derive a reset at render time
+  // without needing a setState-in-effect.
+  const [groceryState, setGroceryState] = useState<{
+    recipeId: string | null
+    listStatus: 'idle' | 'loading' | 'done'
+    addedIngredients: Set<number>
+  }>({ recipeId: null, listStatus: 'idle', addedIngredients: new Set() })
 
-  // reset grocery state when a different recipe opens
-  useEffect(() => {
-    setListStatus('idle')
-    setAddedIngredients(new Set())
-  }, [recipe?.id])
+  const currentRecipeId = recipe?.id ?? null
+  const gs = groceryState.recipeId === currentRecipeId
+    ? groceryState
+    : { recipeId: currentRecipeId, listStatus: 'idle' as const, addedIngredients: new Set<number>() }
+
+  const setListStatus = (listStatus: 'idle' | 'loading' | 'done') =>
+    setGroceryState(prev => ({ ...prev, recipeId: currentRecipeId, listStatus }))
+  const setAddedIngredients = (fn: (prev: Set<number>) => Set<number>) =>
+    setGroceryState(prev => ({ ...prev, recipeId: currentRecipeId, addedIngredients: fn(prev.addedIngredients) }))
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') onClose()
@@ -175,23 +185,23 @@ export default function RecipeSheet({ recipe, open, onClose, onToggleLike, onTog
             {onAddToList && (
               <button
                 type="button"
-                className={`meals-action-btn list-action${listStatus === 'done' ? ' active' : ''}`}
-                disabled={listStatus === 'loading' || listStatus === 'done'}
+                className={`meals-action-btn list-action${gs.listStatus === 'done' ? ' active' : ''}`}
+                disabled={gs.listStatus === 'loading' || gs.listStatus === 'done'}
                 onClick={async () => {
                   setListStatus('loading')
                   try {
                     await onAddToList(r.id, r.ingredients)
                     setListStatus('done')
-                    setAddedIngredients(new Set(r.ingredients.map((_, i) => i)))
+                    setAddedIngredients(() => new Set(r.ingredients.map((_, i) => i)))
                   } catch {
                     setListStatus('idle')
                   }
                 }}
               >
-                {listStatus === 'done'
+                {gs.listStatus === 'done'
                   ? <Check size={20} strokeWidth={1.75} />
                   : <ShoppingCart size={20} strokeWidth={1.75} />}
-                <span>{listStatus === 'done' ? 'On the list' : listStatus === 'loading' ? 'Adding…' : 'Add to list'}</span>
+                <span>{gs.listStatus === 'done' ? 'On the list' : gs.listStatus === 'loading' ? 'Adding…' : 'Add to list'}</span>
               </button>
             )}
             <button
@@ -233,17 +243,17 @@ export default function RecipeSheet({ recipe, open, onClose, onToggleLike, onTog
                     {onAddToList && (
                       <button
                         type="button"
-                        className={`meals-ingredient-add${addedIngredients.has(i) ? ' added' : ''}`}
+                        className={`meals-ingredient-add${gs.addedIngredients.has(i) ? ' added' : ''}`}
                         aria-label={`Add ${ing.name} to grocery list`}
                         onClick={async () => {
-                          if (addedIngredients.has(i)) return
+                          if (gs.addedIngredients.has(i)) return
                           try {
                             await onAddToList(r.id, [ing])
                             setAddedIngredients(prev => new Set(prev).add(i))
                           } catch { /* silent */ }
                         }}
                       >
-                        {addedIngredients.has(i)
+                        {gs.addedIngredients.has(i)
                           ? <Check size={14} strokeWidth={2} />
                           : <Plus size={14} strokeWidth={2} />}
                       </button>

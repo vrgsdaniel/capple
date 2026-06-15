@@ -22,8 +22,20 @@ export function useGroceryList() {
   }, [])
 
   useEffect(() => {
-    fetchList()
-  }, [fetchList])
+    let cancelled = false
+    const run = async () => {
+      try {
+        const res = await api.get<GroceryList>('/api/grocery-items')
+        if (!cancelled) { setList(res.data); setError(null) }
+      } catch {
+        if (!cancelled) setError('Could not load grocery list.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [])
 
   const addItem = async (name: string, qty: string | null) => {
     await api.post<GroceryItem>('/api/grocery-items', { name, qty: qty || null })
