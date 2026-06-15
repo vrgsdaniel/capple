@@ -76,7 +76,11 @@ class GroceryService:
         if existing:
             merged_qty = _merge_qty(existing.get("qty"), qty)
             log.info(f"Merging '{name}' into existing item {existing['id']} (qty: {existing.get('qty')!r} + {qty!r} -> {merged_qty!r})")
-            return self.db.update_grocery_item(existing["id"], {"qty": merged_qty})
+            updated = self.db.update_grocery_item(existing["id"], {"qty": merged_qty}, household_id=household_id)
+            if not updated:
+                log.warning(f"Item {existing['id']} not found in household {household_id} during merge")
+                raise NotFoundException("Grocery item not found.")
+            return updated
         log.info(f"Adding new grocery item '{name}' (qty={qty!r}) to household {household_id}")
         return self.db.create_grocery_item(
             household_id=household_id,
@@ -108,7 +112,10 @@ class GroceryService:
             if existing:
                 merged_qty = _merge_qty(existing.get("qty"), ing_qty)
                 log.info(f"Merging ingredient '{ing_name}' into existing item {existing['id']} (qty -> {merged_qty!r})")
-                updated = self.db.update_grocery_item(existing["id"], {"qty": merged_qty})
+                updated = self.db.update_grocery_item(existing["id"], {"qty": merged_qty}, household_id=household_id)
+                if not updated:
+                    log.warning(f"Item {existing['id']} not found in household {household_id} during recipe merge")
+                    raise NotFoundException("Grocery item not found.")
                 results.append(updated)
                 merged += 1
             else:
@@ -149,10 +156,20 @@ class GroceryService:
         if active_match and active_match["id"] != item_id:
             merged_qty = _merge_qty(active_match.get("qty"), item.get("qty"))
             log.info(f"Merging restored item {item_id} into active item {active_match['id']} (qty -> {merged_qty!r})")
-            updated = self.db.update_grocery_item(active_match["id"], {"qty": merged_qty})
-            self.db.delete_grocery_item(item_id)
+            updated = self.db.update_grocery_item(active_match["id"], {"qty": merged_qty}, household_id=household_id)
+            if not updated:
+                log.warning(f"Active merge target {active_match['id']} not found in household {household_id}")
+                raise NotFoundException("Grocery item not found.")
+            deleted = self.db.delete_grocery_item(item_id, household_id=household_id)
+            if not deleted:
+                log.warning(f"Restored source item {item_id} not found in household {household_id}")
+                raise NotFoundException("Grocery item not found.")
             return updated
-        return self.db.update_grocery_item(item_id, {"bought": False, "bought_at": None})
+        restored = self.db.update_grocery_item(item_id, {"bought": False, "bought_at": None}, household_id=household_id)
+        if not restored:
+            log.warning(f"Item {item_id} not found in household {household_id} during restore")
+            raise NotFoundException("Grocery item not found.")
+        return restored
 
     def remove_item(self, user_id: str, item_id: str) -> None:
         household_id = self._resolve_household(user_id)

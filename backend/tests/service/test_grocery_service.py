@@ -111,6 +111,7 @@ class TestAddItem:
         mock_db.update_grocery_item.assert_called_once()
         merged_qty = mock_db.update_grocery_item.call_args.args[1]["qty"]
         assert merged_qty.lower() == "3 l"
+        assert mock_db.update_grocery_item.call_args.kwargs["household_id"] == FAKE_HOUSEHOLD_ID
 
     def test_merge_appends_with_plus_for_different_units(self, service, mock_db):
         existing = {**FAKE_ITEM, "qty": "200 g"}
@@ -158,6 +159,7 @@ class TestAddFromRecipe:
 
         mock_db.update_grocery_item.assert_called_once()
         mock_db.create_grocery_item.assert_not_called()
+        assert mock_db.update_grocery_item.call_args.kwargs["household_id"] == FAKE_HOUSEHOLD_ID
 
     def test_skips_ingredients_with_empty_name(self, service, mock_db):
         mock_db.create_grocery_item.return_value = dict(FAKE_ITEM)
@@ -209,7 +211,9 @@ class TestRestoreItem:
         result = service.restore_item(FAKE_USER_ID, bought["id"])
 
         assert result["bought"] is False
-        mock_db.update_grocery_item.assert_called_once_with(bought["id"], {"bought": False, "bought_at": None})
+        mock_db.update_grocery_item.assert_called_once_with(
+            bought["id"], {"bought": False, "bought_at": None}, household_id=FAKE_HOUSEHOLD_ID
+        )
 
     def test_merges_into_existing_active_item_on_restore(self, service, mock_db):
         bought = {**FAKE_BOUGHT_ITEM, "name": "Milk", "qty": "1 L"}
@@ -223,7 +227,27 @@ class TestRestoreItem:
         mock_db.update_grocery_item.assert_called_once()
         merged_qty = mock_db.update_grocery_item.call_args.args[1]["qty"]
         assert merged_qty.lower() == "3 l"
-        mock_db.delete_grocery_item.assert_called_once_with(bought["id"])
+        assert mock_db.update_grocery_item.call_args.kwargs["household_id"] == FAKE_HOUSEHOLD_ID
+        mock_db.delete_grocery_item.assert_called_once_with(bought["id"], household_id=FAKE_HOUSEHOLD_ID)
+
+    def test_raises_when_merge_target_missing_during_restore(self, service, mock_db):
+        bought = {**FAKE_BOUGHT_ITEM, "name": "Milk", "qty": "1 L"}
+        active_match = {**FAKE_ITEM, "name": "Milk", "qty": "2 L"}
+        mock_db.get_grocery_item.return_value = bought
+        mock_db.find_active_grocery_item.return_value = active_match
+        mock_db.update_grocery_item.return_value = None
+
+        with pytest.raises(NotFoundException):
+            service.restore_item(FAKE_USER_ID, bought["id"])
+
+    def test_raises_when_restore_update_affects_zero_rows(self, service, mock_db):
+        bought = dict(FAKE_BOUGHT_ITEM)
+        mock_db.get_grocery_item.return_value = bought
+        mock_db.find_active_grocery_item.return_value = None
+        mock_db.update_grocery_item.return_value = None
+
+        with pytest.raises(NotFoundException):
+            service.restore_item(FAKE_USER_ID, bought["id"])
 
     def test_raises_when_item_not_found(self, service, mock_db):
         mock_db.get_grocery_item.return_value = None
