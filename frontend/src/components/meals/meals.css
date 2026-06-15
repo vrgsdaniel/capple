@@ -599,6 +599,9 @@
 .meals-action-btn.cook-action.active {
   color: var(--m-cooked);
 }
+.meals-action-btn.list-action.active {
+  color: var(--m-accent);
+}
 
 /* ─── Detail sections ─────────────────────────────────────────────────────── */
 .meals-detail-section {
@@ -665,6 +668,27 @@
 }
 .meals-ingredient-name {
   color: var(--m-fg);
+}
+.meals-ingredient-add {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: var(--m-fg-4);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+  flex-shrink: 0;
+}
+.meals-ingredients li:hover .meals-ingredient-add {
+  opacity: 1;
+}
+.meals-ingredient-add:hover,
+.meals-ingredient-add.added {
+  color: var(--m-accent);
 }
 
 /* ─── Steps ───────────────────────────────────────────────────────────────── */
