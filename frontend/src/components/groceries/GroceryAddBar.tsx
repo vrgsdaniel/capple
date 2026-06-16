@@ -36,7 +36,12 @@ export default function GroceryAddBar({ onAdd }: Props) {
         value={qty}
         onChange={e => setQty(e.target.value)}
         onKeyDown={onKeyDown}
-        className="w-[104px] shrink-0 rounded-lg border border-[#25292c] bg-[#1a1d1f] px-3 py-2 text-sm text-[#ebeeef] placeholder:text-[#4a4f54] focus:outline-none focus:border-[#bdf260]"
+        className="w-[104px] shrink-0 rounded-lg border px-3 py-2 text-sm focus:outline-none"
+        style={{
+          borderColor: 'var(--m-border)',
+          background: 'var(--m-bg-3)',
+          color: 'var(--m-fg)',
+        }}
       />
       <input
         ref={nameRef}
@@ -45,12 +50,21 @@ export default function GroceryAddBar({ onAdd }: Props) {
         value={name}
         onChange={e => setName(e.target.value)}
         onKeyDown={onKeyDown}
-        className="flex-1 rounded-lg border border-[#25292c] bg-[#1a1d1f] px-3 py-2 text-sm text-[#ebeeef] placeholder:text-[#4a4f54] focus:outline-none focus:border-[#bdf260]"
+        className="flex-1 rounded-lg border px-3 py-2 text-sm focus:outline-none"
+        style={{
+          borderColor: 'var(--m-border)',
+          background: 'var(--m-bg-3)',
+          color: 'var(--m-fg)',
+        }}
       />
       <button
         onClick={submit}
         disabled={!name.trim() || loading}
-        className="shrink-0 rounded-lg bg-[#bdf260] px-4 py-2 text-sm font-medium text-[#0e1011] transition-opacity disabled:opacity-40 hover:opacity-90"
+        className="shrink-0 rounded-lg px-4 py-2 text-sm font-medium transition-opacity disabled:opacity-40 hover:opacity-90"
+        style={{
+          background: 'var(--m-accent)',
+          color: 'var(--m-accent-fg)',
+        }}
       >
         Add
       </button>

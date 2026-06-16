@@ -1,0 +1,10 @@
+.grocery-item {
+  background: transparent;
+}
+.grocery-item:hover {
+  background: var(--m-bg-hover);
+}
+
+.grocery-remove:hover {
+  color: var(--m-love) !important;
+}

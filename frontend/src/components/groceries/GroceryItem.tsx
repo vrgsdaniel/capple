@@ -21,14 +21,11 @@ export default function GroceryItem({ item, onMarkBought, onRemove }: Props) {
 
   return (
     <div
-      className="group flex items-center gap-3 rounded-lg px-1 py-2 transition-all duration-[220ms]"
+      className="grocery-item group flex items-center gap-3 rounded-lg px-1 py-2 transition-all duration-[220ms]"
       style={{
         opacity: leaving ? 0 : 1,
         transform: leaving ? 'translateX(8px)' : 'translateX(0)',
-        background: 'transparent',
       }}
-      onMouseEnter={e => (e.currentTarget.style.background = '#15181a')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
       {/* check circle */}
       <button
@@ -37,27 +34,27 @@ export default function GroceryItem({ item, onMarkBought, onRemove }: Props) {
         style={{
           width: 22,
           height: 22,
-          border: checked ? 'none' : '1.75px solid #4a4f54',
-          background: checked ? '#bdf260' : 'transparent',
+          border: checked ? 'none' : '1.75px solid var(--m-fg-4)',
+          background: checked ? 'var(--m-accent)' : 'transparent',
         }}
         aria-label="Mark as bought"
       >
-        {checked && <Check size={13} strokeWidth={2.5} color="#0e1011" />}
+        {checked && <Check size={13} strokeWidth={2.5} color="var(--m-accent-fg)" />}
       </button>
 
       {/* qty + name */}
       <div className="flex flex-1 items-baseline gap-2 min-w-0">
         {item.qty && (
-          <span className="shrink-0 text-sm font-medium tabular-nums text-[#a8adb1]">
+          <span className="shrink-0 text-sm font-medium tabular-nums" style={{ color: 'var(--m-fg-2)' }}>
             {item.qty}
           </span>
         )}
-        <span className="truncate text-[14.5px] text-[#ebeeef]">{item.name}</span>
+        <span className="truncate text-[14.5px]" style={{ color: 'var(--m-fg)' }}>{item.name}</span>
       </div>
 
       {/* recipe source hint */}
       {item.source_recipe_title && (
-        <div className="flex shrink-0 items-center gap-1 text-[#6e7378]">
+        <div className="flex shrink-0 items-center gap-1" style={{ color: 'var(--m-fg-3)' }}>
           <ChefHat size={11} />
           <span className="text-[11.5px] max-w-[100px] truncate">{item.source_recipe_title}</span>
         </div>
@@ -66,8 +63,8 @@ export default function GroceryItem({ item, onMarkBought, onRemove }: Props) {
       {/* remove button — revealed on row hover */}
       <button
         onClick={() => onRemove(item.id)}
-        className="shrink-0 rounded p-1 opacity-0 transition-all duration-120 group-hover:opacity-100 hover:text-[#ff5e7a]"
-        style={{ color: '#4a4f54' }}
+        className="grocery-remove shrink-0 rounded p-1 opacity-0 transition-all duration-120 group-hover:opacity-100"
+        style={{ color: 'var(--m-fg-4)' }}
         aria-label="Remove item"
       >
         <Trash2 size={15} />
