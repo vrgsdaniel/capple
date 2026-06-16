@@ -1,20 +1,5 @@
-/* ─── Meals tab design tokens ──────────────────────────────────────────────── */
+/* ─── Meals tab ─────────────────────────────────────────────────────────────── */
 .meals-tab {
-  --m-bg:          #0e1011;
-  --m-bg-2:        #15181a;
-  --m-bg-3:        #1a1d1f;
-  --m-bg-hover:    #1f2225;
-  --m-border:      #25292c;
-  --m-border-2:    #2e3236;
-  --m-fg:          #ebeeef;
-  --m-fg-2:        #a8adb1;
-  --m-fg-3:        #6e7378;
-  --m-fg-4:        #4a4f54;
-  --m-accent:      #bdf260;
-  --m-accent-soft: rgba(189, 242, 96, 0.14);
-  --m-love:        #ff5e7a;
-  --m-cooked:      #ffb454;
-
   font-size: 14px;
   line-height: 1.45;
   color: var(--m-fg);
@@ -442,7 +427,7 @@
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--m-drag-handle);
   margin: 8px auto -12px;
   flex-shrink: 0;
   z-index: 2;

@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useHousehold } from '@/hooks/useHousehold'
 import { AuthProvider } from '@/providers/AuthProvider'
 import { HouseholdProvider } from '@/providers/HouseholdProvider'
+import { ThemeProvider } from '@/providers/ThemeProvider'
 import { PwaInstallPrompt } from '@/components/common/PwaInstallPrompt'
 import { OfflineBanner } from '@/components/common/OfflineBanner'
 import './index.css'
@@ -74,6 +75,7 @@ function AppRoutes() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ThemeProvider>
     <AuthProvider>
       <HouseholdProvider>
         <BrowserRouter>
@@ -83,5 +85,6 @@ createRoot(document.getElementById('root')!).render(
         </BrowserRouter>
       </HouseholdProvider>
     </AuthProvider>
+    </ThemeProvider>
   </StrictMode>
 )

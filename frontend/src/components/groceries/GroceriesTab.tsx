@@ -1,3 +1,4 @@
+import './groceries.css'
 import { Users, ShoppingCart } from 'lucide-react'
 import { useGroceryList } from '@/hooks/useGroceryList'
 import { useGroceryRealtime } from '@/hooks/useGroceryRealtime'
@@ -16,13 +17,13 @@ export default function GroceriesTab({ householdId }: Props) {
   useGroceryRealtime(householdId, refetch)
 
   return (
-    <div className="rounded-xl min-h-[400px]" style={{ color: '#ebeeef' }}>
+    <div className="rounded-xl min-h-[400px]" style={{ color: 'var(--m-fg)' }}>
       {/* header */}
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-widest text-[#6e7378]">Groceries</p>
-        <p className="text-xs text-[#6e7378]">{list.active.length} item{list.active.length !== 1 ? 's' : ''}</p>
+        <p className="text-xs font-medium uppercase tracking-widest" style={{ color: 'var(--m-fg-3)' }}>Groceries</p>
+        <p className="text-xs" style={{ color: 'var(--m-fg-3)' }}>{list.active.length} item{list.active.length !== 1 ? 's' : ''}</p>
       </div>
-      <div className="mt-1 flex items-center gap-1.5 text-[#6e7378]">
+      <div className="mt-1 flex items-center gap-1.5" style={{ color: 'var(--m-fg-3)' }}>
         <Users size={12} />
         <p className="text-xs">Shared with your household — changes sync live</p>
       </div>
@@ -37,7 +38,7 @@ export default function GroceriesTab({ householdId }: Props) {
 
       {/* loading */}
       {loading && (
-        <p className="mt-8 text-center text-sm text-[#4a4f54]">Loading…</p>
+        <p className="mt-8 text-center text-sm" style={{ color: 'var(--m-fg-4)' }}>Loading…</p>
       )}
 
       {/* active list */}
@@ -75,11 +76,12 @@ export default function GroceriesTab({ householdId }: Props) {
 function EmptyState() {
   return (
     <div
-      className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-dashed border-[#25292c] py-12 text-center"
+      className="mt-6 flex flex-col items-center gap-3 rounded-xl border border-dashed py-12 text-center"
+      style={{ borderColor: 'var(--m-border)' }}
     >
-      <ShoppingCart size={28} color="#4a4f54" />
-      <p className="text-sm text-[#6e7378]">Your list is empty</p>
-      <p className="text-xs text-[#4a4f54]">Add an item above or push ingredients from a recipe</p>
+      <ShoppingCart size={28} style={{ color: 'var(--m-fg-4)' }} />
+      <p className="text-sm" style={{ color: 'var(--m-fg-3)' }}>Your list is empty</p>
+      <p className="text-xs" style={{ color: 'var(--m-fg-4)' }}>Add an item above or push ingredients from a recipe</p>
     </div>
   )
 }
