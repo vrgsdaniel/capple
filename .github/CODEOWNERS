@@ -1,0 +1,8 @@
+# Global fallback — owns everything not matched by a more specific rule
+* @vrgsdaniel
+
+# Frontend
+/frontend/ @vrgsdaniel
+
+# Backend
+/backend/ @vrgsdaniel
