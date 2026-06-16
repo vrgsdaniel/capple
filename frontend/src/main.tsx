@@ -5,6 +5,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { useHousehold } from '@/hooks/useHousehold'
 import { AuthProvider } from '@/providers/AuthProvider'
 import { HouseholdProvider } from '@/providers/HouseholdProvider'
+import { PwaInstallPrompt } from '@/components/common/PwaInstallPrompt'
+import { OfflineBanner } from '@/components/common/OfflineBanner'
 import './index.css'
 
 const Login = lazy(() => import('@/pages/Login'))
@@ -64,7 +66,9 @@ createRoot(document.getElementById('root')!).render(
     <AuthProvider>
       <HouseholdProvider>
         <BrowserRouter>
+          <OfflineBanner />
           <AppRoutes />
+          <PwaInstallPrompt />
         </BrowserRouter>
       </HouseholdProvider>
     </AuthProvider>
