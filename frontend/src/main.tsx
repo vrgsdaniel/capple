@@ -11,7 +11,8 @@ import './index.css'
 
 const Login = lazy(() => import('@/pages/Login'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
-const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const HomePage = lazy(() => import('@/pages/HomePage'))
+const SectionPage = lazy(() => import('@/pages/SectionPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -51,7 +52,17 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <HouseholdRoute>
-                <Dashboard />
+                <HomePage />
+              </HouseholdRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/:sectionId"
+          element={
+            <ProtectedRoute>
+              <HouseholdRoute>
+                <SectionPage />
               </HouseholdRoute>
             </ProtectedRoute>
           }
