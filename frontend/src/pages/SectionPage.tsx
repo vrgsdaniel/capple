@@ -1,4 +1,4 @@
-import { useParams, Navigate } from 'react-router-dom'
+import { useParams, Navigate, Link } from 'react-router-dom'
 import { AppShell } from '@/components/layout/AppShell'
 import { SECTIONS } from '@/config/sections'
 import { useProfile } from '@/hooks/useProfile'
@@ -14,7 +14,29 @@ export default function SectionPage() {
   if (!section) return <Navigate to="/" replace />
 
   return (
-    <AppShell backTo="/" profile={profile}>
+    <AppShell profile={profile}>
+      <div className="border-b border-border">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="flex gap-1 py-2 overflow-x-auto">
+            {SECTIONS.filter(s => !s.disabled).map(s => (
+              <Link
+                key={s.id}
+                to={`/${s.id}`}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors"
+                style={s.id === sectionId ? {
+                  background: s.color + '22',
+                  color: s.color,
+                } : {
+                  color: 'var(--muted-foreground)',
+                }}
+              >
+                <span>{s.icon}</span>
+                <span>{s.title}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className="max-w-3xl mx-auto px-4 py-6">
         {section.render({ profile, household })}
       </div>
