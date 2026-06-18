@@ -14,7 +14,7 @@ export default function SectionPage() {
   if (!section) return <Navigate to="/" replace />
 
   return (
-    <AppShell profile={profile}>
+    <AppShell backTo="/" profile={profile}>
       <div className="border-b border-border">
         <div className="max-w-3xl mx-auto px-4">
           <div className="flex gap-1 py-2 overflow-x-auto">
