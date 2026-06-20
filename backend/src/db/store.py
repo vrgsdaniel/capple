@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal, overload
+
 from supabase import Client
 from postgrest.exceptions import APIError
 
@@ -18,8 +20,13 @@ class Store:
     def _table(self):
         return self._client.schema(self._schema_name).table(self._table_name)
 
-    def _build_query(self, criteria: Criteria):
-        query = self._table().select(criteria._select)
+    def _apply_filters(self, query, criteria: Criteria):
+        for f in criteria._filters:
+            query = getattr(query, f.operator)(f.column, f.value)
+        return query
+
+    def _build_query(self, criteria: Criteria, *, count: str | None = None):
+        query = self._table().select(criteria._select, count=count)
         query = self._apply_filters(query, criteria)
         if criteria._order_by is not None:
             query = query.order(criteria._order_by, desc=not criteria._ascending)
@@ -28,21 +35,23 @@ class Store:
             query = query.range(offset, offset + criteria._limit - 1)
         return query
 
-    def _apply_filters(self, query, criteria: Criteria):
-        for f in criteria._filters:
-            query = getattr(query, f.operator)(f.column, f.value)
-        return query
+    @overload
+    def find(self, criteria: Criteria | None = None, *, with_count: Literal[False] = False) -> list[dict]: ...
+    @overload
+    def find(self, criteria: Criteria | None = None, *, with_count: Literal[True]) -> tuple[list[dict], int]: ...
 
-    def find(self, criteria: Criteria | None = None) -> list[dict]:
+    def find(self, criteria: Criteria | None = None, *, with_count: bool = False):
         criteria = criteria or Criteria()
-        result = self._build_query(criteria).execute()
+        result = self._build_query(criteria, count="exact" if with_count else None).execute()
+        if with_count:
+            return result.data, (result.count or 0)
         return result.data
 
     def find_one(self, criteria: Criteria | None = None) -> dict | None:
         criteria = criteria or Criteria()
         criteria.limit(1)
-        results = self.find(criteria)
-        return results[0] if results else None
+        data, _ = self.find(criteria)
+        return data[0] if data else None
 
     def get_by_id(self, entity_id: str) -> dict | None:
         return self.find_one(Criteria().eq("id", entity_id))
@@ -74,10 +83,8 @@ class Store:
         return result.data[0] if result.data else None
 
     def update_where(self, criteria: Criteria, data: dict) -> list[dict]:
-        query = self._table().update(data)
-        query = self._apply_filters(query, criteria)
-        result = query.execute()
-        return result.data
+        query = self._apply_filters(self._table().update(data), criteria)
+        return query.execute().data
 
     def delete(self, entity_id: str) -> None:
         self._table().delete().eq("id", entity_id).execute()
@@ -87,11 +94,3 @@ class Store:
         query = self._apply_filters(query, criteria)
         result = query.execute()
         return result.data
-
-    def count(self, criteria: Criteria | None = None) -> int:
-        """Count total rows matching criteria."""
-        criteria = criteria or Criteria()
-        query = self._table().select("id", count="exact")
-        query = self._apply_filters(query, criteria)
-        result = query.execute()
-        return result.count or 0

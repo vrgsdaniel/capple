@@ -4,6 +4,7 @@ from supabase import create_client, Client
 from src.settings import get_supabase_settings
 from src.db.criteria import Criteria
 from src.db.store import Store
+from src.utils.general import timestamp
 from src.utils.logger import logger as log
 
 
@@ -96,7 +97,7 @@ class DB:
         """Get full recipe details row."""
         return self.store("recipes").find_one(Criteria().eq("id", recipe_id))
 
-    def find_recipes(
+    def find_recipes_with_count(
         self,
         search: str | None = None,
         recipe_type: str | None = None,
@@ -106,8 +107,8 @@ class DB:
         sort_order: str = "asc",
         page: int = 1,
         limit: int = 20,
-    ) -> list[dict]:
-        """Find recipes with filtering and pagination."""
+    ) -> tuple[list[dict], int]:
+        """Find recipes and total count in one DB round-trip. Count reflects pre-array-filter rows."""
         criteria = Criteria()
 
         # Search filter (ILIKE on name)
@@ -129,39 +130,13 @@ class DB:
         offset = (page - 1) * limit
         criteria = criteria.limit(limit).offset(offset)
 
-        recipes = self.store("recipes").find(criteria)
+        recipes, total = self.store("recipes").find(criteria, with_count=True)
 
         # Filter by labels/ingredients (client-side for simplicity, can be optimized later)
         if labels or ingredients:
             recipes = self._filter_recipes_by_arrays(recipes, labels, ingredients)
 
-        return recipes
-
-    def count_recipes(
-        self,
-        search: str | None = None,
-        recipe_type: str | None = None,
-        labels: list[str] | None = None,
-        ingredients: list[str] | None = None,
-    ) -> int:
-        """Count total recipes matching criteria."""
-        criteria = Criteria()
-
-        if search:
-            # TODO: For better search, consider adding a tsvector column and using full-text search instead of ILIKE
-            criteria = criteria.ilike("name", f"%{search}%")
-        if recipe_type:
-            criteria = criteria.eq("recipe_type", recipe_type)
-
-        total = self.store("recipes").count(criteria)
-
-        # If we're filtering by labels/ingredients, adjust count
-        if labels or ingredients:
-            # For accurate count, we'd need to fetch all matching recipes and filter
-            # For MVP, we return the unfiltered count (slight inaccuracy acceptable)
-            pass
-
-        return total
+        return recipes, total
 
     def _filter_recipes_by_arrays(
         self, recipes: list[dict], labels: list[str] | None, ingredients: list[str] | None
@@ -324,6 +299,91 @@ class DB:
 
     def delete_bought_grocery_items(self, household_id: str) -> None:
         self.store("grocery_items").delete_where(Criteria().eq("household_id", household_id).eq("bought", True))
+
+    # --- tasks ---
+
+    def find_tasks_with_count(
+        self,
+        household_id: str,
+        page: int = 1,
+        page_size: int = 20,
+        include_history: bool = True,
+    ) -> tuple[list[dict], int, list[dict], int]:
+        """Fetch all household tasks in one DB round-trip, then split/sort/paginate in Python."""
+        criteria = Criteria().eq("household_id", household_id)
+        if not include_history:
+            criteria = criteria.is_("completed_at", None)
+
+        all_tasks = self.store("tasks").find(criteria)
+
+        active = sorted(
+            (t for t in all_tasks if t["completed_at"] is None),
+            key=lambda t: (t["due_date"] is None, t["due_date"] or ""),
+        )
+        history = sorted(
+            (t for t in all_tasks if t["completed_at"] is not None),
+            key=lambda t: t["completed_at"],
+            reverse=True,
+        )
+
+        offset = (page - 1) * page_size
+        return (
+            active[offset : offset + page_size],
+            len(active),
+            history[offset : offset + page_size],
+            len(history),
+        )
+
+    def get_task(self, task_id: str, household_id: str) -> dict | None:
+        return self.store("tasks").find_one(Criteria().eq("id", task_id).eq("household_id", household_id))
+
+    def create_task(
+        self,
+        household_id: str,
+        name: str,
+        assignee_type: str,
+        assignee_id: str | None,
+        due_date: str | None,
+        frequency: str | None,
+        created_by: str,
+    ) -> dict:
+        data: dict = {
+            "household_id": household_id,
+            "name": name,
+            "assignee_type": assignee_type,
+            "created_by": created_by,
+        }
+        if assignee_id is not None:
+            data["assignee_id"] = assignee_id
+        if due_date is not None:
+            data["due_date"] = due_date
+        if frequency is not None:
+            data["frequency"] = frequency
+        return self.store("tasks").insert(data)
+
+    def update_task(
+        self,
+        task_id: str,
+        data: dict,
+        household_id: str | None = None,
+        active_only: bool = False,
+    ) -> dict | None:
+        criteria = Criteria().eq("id", task_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        if active_only:
+            criteria = criteria.is_("completed_at", None)
+        result = self.store("tasks").update_where(criteria, {**data, "updated_at": timestamp()})
+        return result[0] if result else None
+
+    def delete_task(self, task_id: str, household_id: str | None = None, active_only: bool = False) -> bool:
+        criteria = Criteria().eq("id", task_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        if active_only:
+            criteria = criteria.is_("completed_at", None)
+        result = self.store("tasks").delete_where(criteria)
+        return len(result) > 0
 
 
 def get_db() -> DB:

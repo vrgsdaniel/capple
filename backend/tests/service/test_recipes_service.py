@@ -88,8 +88,7 @@ class TestListRecipes:
                 "rating": 5,
             }
         ]
-        mock_db.find_recipes.return_value = mock_recipes
-        mock_db.count_recipes.return_value = 1
+        mock_db.find_recipes_with_count.return_value = (mock_recipes, 1)
 
         result = service.list_recipes()
 
@@ -115,8 +114,7 @@ class TestListRecipes:
             }
         ]
         mock_interactions = {"recipe-1": {"liked": True, "cooked": False, "user_rating": 4}}
-        mock_db.find_recipes.return_value = mock_recipes
-        mock_db.count_recipes.return_value = 1
+        mock_db.find_recipes_with_count.return_value = (mock_recipes, 1)
         mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
 
         result = service.list_recipes(user_id=user_id)
@@ -127,22 +125,18 @@ class TestListRecipes:
         mock_db.get_recipes_interactions_bulk.assert_called_once_with(["recipe-1"], user_id)
 
     def test_pagination_defaults(self, service, mock_db):
-        mock_recipes = []
-        mock_db.find_recipes.return_value = mock_recipes
-        mock_db.count_recipes.return_value = 0
+        mock_db.find_recipes_with_count.return_value = ([], 0)
 
         result = service.list_recipes()
 
         assert result["page"] == 1
         assert result["limit"] == 20
-        call_kwargs = mock_db.find_recipes.call_args[1]
+        call_kwargs = mock_db.find_recipes_with_count.call_args[1]
         assert call_kwargs["page"] == 1
         assert call_kwargs["limit"] == 20
 
     def test_pagination_validation(self, service, mock_db):
-        mock_recipes = []
-        mock_db.find_recipes.return_value = mock_recipes
-        mock_db.count_recipes.return_value = 0
+        mock_db.find_recipes_with_count.return_value = ([], 0)
 
         # Test invalid page (should default to 1)
         result = service.list_recipes(page=0)
@@ -150,7 +144,7 @@ class TestListRecipes:
 
         # Test limit capped at 100
         result = service.list_recipes(limit=200)
-        call_kwargs = mock_db.find_recipes.call_args[1]
+        call_kwargs = mock_db.find_recipes_with_count.call_args[1]
         assert call_kwargs["limit"] == 100
 
     @pytest.mark.parametrize(
@@ -168,14 +162,12 @@ class TestListRecipes:
         ],
     )
     def test_forwards_optional_filters_and_sorting(self, service, mock_db, call_kwargs, expected_forwarded):
-        mock_recipes = []
-        mock_db.find_recipes.return_value = mock_recipes
-        mock_db.count_recipes.return_value = 0
+        mock_db.find_recipes_with_count.return_value = ([], 0)
 
         result = service.list_recipes(**call_kwargs)
 
         assert result["total"] == 0
-        call_kwargs = mock_db.find_recipes.call_args[1]
+        call_kwargs = mock_db.find_recipes_with_count.call_args[1]
         for key, value in expected_forwarded.items():
             assert call_kwargs[key] == value
 
@@ -284,8 +276,7 @@ class TestListRecipesWithInteractions:
             "recipe-1": {"liked": True, "cooked": False, "user_rating": None},
             "recipe-2": {"liked": False, "cooked": True, "user_rating": 5},
         }
-        mock_db.find_recipes.return_value = mock_recipes
-        mock_db.count_recipes.return_value = 2
+        mock_db.find_recipes_with_count.return_value = (mock_recipes, 2)
         mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
 
         result = service.list_recipes(user_id=user_id)

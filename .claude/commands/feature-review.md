@@ -71,6 +71,8 @@ Read every file in full before producing findings.
 - [ ] Zero affected rows from update/delete raises `NotFoundException` — never returns `None` to caller
 - [ ] No raw SQL or direct Supabase client calls
 - [ ] No `list[dict]` scanned in Python for lookups that could be DB queries
+- [ ] No pre-fetch before update/delete to check existence — include ownership constraints in the query itself; treat 0 affected rows as not found. A pattern of `get_X → check None → update_X` is a sign the pre-fetch is redundant.
+- [ ] `log.warning` is called on every not-found / error path before raising, with enough context to trace the failure (user id, resource id, household id)
 
 ### E. DB methods (`backend/src/db/db.py`)
 - [ ] All queries use `self.store("<table>")` with `Criteria` builder
@@ -79,6 +81,7 @@ Read every file in full before producing findings.
 - [ ] `update_where` / `delete_where` return values are checked for zero rows where callers need it
 - [ ] No Python-side O(n) filtering of full table fetches when an indexed DB query would suffice
 - [ ] Methods that may return `None` are typed `-> dict | None`
+- [ ] No separate `count(...)` + `find(...)` pair when a single `find_with_count(...)` (PostgREST `count=exact`) would return both data and total in one network round-trip. Look for consecutive calls like `db.count_X(...)` followed immediately by `db.find_X(...)` with the same filters.
 
 ### F. Tests — controller level (`tests/api/`)
 - [ ] `MagicMock(spec=<Service>)` is used — not bare `MagicMock()`
