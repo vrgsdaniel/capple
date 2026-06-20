@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Task, CreateTaskPayload, UpdateTaskPayload, AssigneeType, Frequency } from '@/types/tasks'
 
@@ -19,18 +19,15 @@ export default function TaskForm({ task, currentUserId, onSave, onClose }: Props
   const isEdit = !!task
 
   const [name, setName] = useState(task?.name ?? '')
-  const [assigneeType, setAssigneeType] = useState<AssigneeType>(task?.assignee_type ?? 'none')
+  const [assigneeType, setAssigneeType] = useState<AssigneeType>(
+    (task as (Task & { _assignToMe?: boolean }) | null)?._assignToMe
+      ? 'specific'
+      : (task?.assignee_type ?? 'none')
+  )
   const [dueDate, setDueDate] = useState(task?.due_date ?? '')
   const [frequency, setFrequency] = useState<Frequency | ''>(task?.frequency ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // When opened for "assign to me" shortcut
-  useEffect(() => {
-    if ((task as (Task & { _assignToMe?: boolean }) | null)?._assignToMe) {
-      setAssigneeType('specific')
-    }
-  }, [task])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
