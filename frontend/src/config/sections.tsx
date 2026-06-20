@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import type { Profile } from '@/hooks/useProfile'
 import type { Household } from '@/hooks/useHousehold'
 
+const TasksTab = lazy(() => import('@/components/tasks/TasksTab'))
 const BatteryTab = lazy(() => import('@/components/battery/BatteryTab'))
 const MealsTab = lazy(() => import('@/components/meals/MealsTab'))
 const GroceriesTab = lazy(() => import('@/components/groceries/GroceriesTab'))
@@ -23,6 +24,19 @@ export interface Section {
 
 // ─── Add new sections here — this is the only file you need to touch ──────────
 export const SECTIONS: Section[] = [
+  {
+    id: 'tasks',
+    title: 'Chores',
+    icon: '🧽',
+    color: '#4ECDC4',
+    description: 'Household chores & tasks',
+    render: ({ profile, household }) =>
+      profile && household ? (
+        <Suspense fallback={null}>
+          <TasksTab userId={profile.id} householdId={household.id} />
+        </Suspense>
+      ) : null,
+  },
   {
     id: 'battery',
     title: 'Battery',
@@ -52,7 +66,7 @@ export const SECTIONS: Section[] = [
     id: 'groceries',
     title: 'Groceries',
     icon: '🛒',
-    color: '#4ECDC4',
+    color: '#800848',
     description: 'Manage your shopping list',
     render: ({ household }) =>
       household ? (

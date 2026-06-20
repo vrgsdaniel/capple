@@ -1,0 +1,10 @@
+.task-item {
+  background: transparent;
+}
+.task-item:hover {
+  background: var(--m-bg-hover);
+}
+
+.task-menu-btn:hover {
+  color: var(--m-fg-2) !important;
+}
