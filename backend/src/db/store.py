@@ -50,7 +50,7 @@ class Store:
     def find_one(self, criteria: Criteria | None = None) -> dict | None:
         criteria = criteria or Criteria()
         criteria.limit(1)
-        data, _ = self.find(criteria)
+        data = self.find(criteria)
         return data[0] if data else None
 
     def get_by_id(self, entity_id: str) -> dict | None:
