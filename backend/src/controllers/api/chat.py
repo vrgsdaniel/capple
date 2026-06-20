@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from src.controllers.api.users import get_current_user
-from src.db.db import DB, get_db
+from src.repository.repository import Repository, get_repository
 from src.models.chat import ChatRequest
 from src.service.chat import ChatService
 from src.service.users import UserService
@@ -25,9 +25,9 @@ def get_chat_graph(request: Request):
     return request.app.state.chat_graph
 
 
-def get_chat_service(
+async def get_chat_service(
     current_user: Annotated[dict, Depends(get_current_user)],
-    db: Annotated[DB, Depends(get_db)],
+    repo: Annotated[Repository, Depends(get_repository)],
     chatbot: Annotated[Chatbot, Depends(get_chatbot)],
     graph=Depends(get_chat_graph),
 ) -> ChatService:
@@ -37,13 +37,13 @@ def get_chat_service(
     doesn't belong to a household.
     """
     user_id = str(current_user.id)
-    user_service = UserService(db)
-    household = user_service.get_user_household(user_id)
+    user_service = UserService(repo)
+    household = await user_service.get_user_household(user_id)
 
     if not household:
         raise NotFoundException("User must belong to a household to use chat")
 
-    return ChatService(user_id, household["id"], db, chatbot, graph)
+    return ChatService(user_id, household["id"], repo, chatbot, graph)
 
 
 def convert_history_to_dict(history):
@@ -62,16 +62,14 @@ async def chat(
 
     log.info(f"Starting chat for user {user_id} in household {household_id} with message: {body.message}")
 
-    stream_iter = iter(chat_service.stream_response(body.message, convert_history_to_dict(body.history)))
+    stream_iter = chat_service.stream_response(body.message, convert_history_to_dict(body.history))
     first_content = None
 
     yield ServerSentEvent(comment="stream of chat updates")
 
-    # In response_class-based SSE handlers, setup executes during streaming.
-    # Emit an error event instead of raising HTTPException to keep stream semantics.
     try:
-        first_content = next(stream_iter)
-    except StopIteration:
+        first_content = await stream_iter.__anext__()
+    except StopAsyncIteration:
         first_content = None
     except NotFoundException as e:
         log.exception(f"Chat not found error: {e}")
@@ -88,8 +86,7 @@ async def chat(
             yield ServerSentEvent(data=first_content, event="message", id=str(event_id))
             event_id += 1
 
-        # Stream response content from the chat service
-        for content in stream_iter:
+        async for content in stream_iter:
             yield ServerSentEvent(data=content, event="message", id=str(event_id))
             event_id += 1
 

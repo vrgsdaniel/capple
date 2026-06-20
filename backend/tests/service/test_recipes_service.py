@@ -1,14 +1,14 @@
 from unittest.mock import MagicMock
 import pytest
 
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.errors import NotFoundException
 from src.service.recipes import RecipeService
 
 
 @pytest.fixture
 def mock_db():
-    return MagicMock(spec=DB)
+    return MagicMock(spec=Repository)
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def service(mock_db):
 
 
 class TestGetRecipeDetails:
-    def test_success_without_user(self, service, mock_db):
+    async def test_success_without_user(self, service, mock_db):
         recipe_id = "recipe-123"
         mock_recipe = {
             "id": recipe_id,
@@ -31,7 +31,7 @@ class TestGetRecipeDetails:
         }
         mock_db.get_recipe_by_id.return_value = mock_recipe
 
-        result = service.get_recipe_details(recipe_id)
+        result = await service.get_recipe_details(recipe_id)
 
         assert result["name"] == "Pasta Carbonara"
         assert result["rating"] == 5
@@ -39,7 +39,7 @@ class TestGetRecipeDetails:
         mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
         mock_db.get_recipe_interactions.assert_not_called()
 
-    def test_success_with_user(self, service, mock_db):
+    async def test_success_with_user(self, service, mock_db):
         recipe_id = "recipe-123"
         user_id = "user-456"
         mock_recipe = {
@@ -56,7 +56,7 @@ class TestGetRecipeDetails:
         mock_db.get_recipe_by_id.return_value = mock_recipe
         mock_db.get_recipe_interactions.return_value = mock_interactions
 
-        result = service.get_recipe_details(recipe_id, user_id)
+        result = await service.get_recipe_details(recipe_id, user_id)
 
         assert result["name"] == "Pasta Carbonara"
         assert result["liked"] is True
@@ -65,18 +65,18 @@ class TestGetRecipeDetails:
         mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
         mock_db.get_recipe_interactions.assert_called_once_with(recipe_id, user_id)
 
-    def test_not_found(self, service, mock_db):
+    async def test_not_found(self, service, mock_db):
         recipe_id = "nonexistent"
         mock_db.get_recipe_by_id.return_value = None
 
         with pytest.raises(NotFoundException):
-            service.get_recipe_details(recipe_id)
+            await service.get_recipe_details(recipe_id)
 
         mock_db.get_recipe_by_id.assert_called_once_with(recipe_id)
 
 
 class TestListRecipes:
-    def test_success_no_filters_without_user(self, service, mock_db):
+    async def test_success_no_filters_without_user(self, service, mock_db):
         mock_recipes = [
             {
                 "id": "recipe-1",
@@ -90,7 +90,7 @@ class TestListRecipes:
         ]
         mock_db.find_recipes_with_count.return_value = (mock_recipes, 1)
 
-        result = service.list_recipes()
+        result = await service.list_recipes()
 
         assert result["total"] == 1
         assert len(result["items"]) == 1
@@ -100,7 +100,7 @@ class TestListRecipes:
         assert result["limit"] == 20
         mock_db.get_recipes_interactions_bulk.assert_not_called()
 
-    def test_success_with_user(self, service, mock_db):
+    async def test_success_with_user(self, service, mock_db):
         user_id = "user-456"
         mock_recipes = [
             {
@@ -117,17 +117,17 @@ class TestListRecipes:
         mock_db.find_recipes_with_count.return_value = (mock_recipes, 1)
         mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
 
-        result = service.list_recipes(user_id=user_id)
+        result = await service.list_recipes(user_id=user_id)
 
         assert result["total"] == 1
         assert result["items"][0]["liked"] is True
         assert result["items"][0]["user_rating"] == 4
         mock_db.get_recipes_interactions_bulk.assert_called_once_with(["recipe-1"], user_id)
 
-    def test_pagination_defaults(self, service, mock_db):
+    async def test_pagination_defaults(self, service, mock_db):
         mock_db.find_recipes_with_count.return_value = ([], 0)
 
-        result = service.list_recipes()
+        result = await service.list_recipes()
 
         assert result["page"] == 1
         assert result["limit"] == 20
@@ -135,15 +135,13 @@ class TestListRecipes:
         assert call_kwargs["page"] == 1
         assert call_kwargs["limit"] == 20
 
-    def test_pagination_validation(self, service, mock_db):
+    async def test_pagination_validation(self, service, mock_db):
         mock_db.find_recipes_with_count.return_value = ([], 0)
 
-        # Test invalid page (should default to 1)
-        result = service.list_recipes(page=0)
+        result = await service.list_recipes(page=0)
         assert result["page"] == 1
 
-        # Test limit capped at 100
-        result = service.list_recipes(limit=200)
+        result = await service.list_recipes(limit=200)
         call_kwargs = mock_db.find_recipes_with_count.call_args[1]
         assert call_kwargs["limit"] == 100
 
@@ -161,15 +159,15 @@ class TestListRecipes:
             ),
         ],
     )
-    def test_forwards_optional_filters_and_sorting(self, service, mock_db, call_kwargs, expected_forwarded):
+    async def test_forwards_optional_filters_and_sorting(self, service, mock_db, call_kwargs, expected_forwarded):
         mock_db.find_recipes_with_count.return_value = ([], 0)
 
-        result = service.list_recipes(**call_kwargs)
+        result = await service.list_recipes(**call_kwargs)
 
         assert result["total"] == 0
-        call_kwargs = mock_db.find_recipes_with_count.call_args[1]
+        actual_kwargs = mock_db.find_recipes_with_count.call_args[1]
         for key, value in expected_forwarded.items():
-            assert call_kwargs[key] == value
+            assert actual_kwargs[key] == value
 
 
 class TestToggleInteractions:
@@ -182,13 +180,13 @@ class TestToggleInteractions:
             ("cooked", "toggle_recipe_cooked"),
         ],
     )
-    def test_add_interaction_when_not_present(self, service, mock_db, interaction_type, service_method):
+    async def test_add_interaction_when_not_present(self, service, mock_db, interaction_type, service_method):
         recipe_id = "recipe-123"
         user_id = "user-456"
         mock_db.has_interaction.return_value = False
         mock_db.add_interaction.return_value = {"id": "interaction-1"}
 
-        result = getattr(service, service_method)(recipe_id, user_id)
+        result = await getattr(service, service_method)(recipe_id, user_id)
 
         assert result is True
         mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
@@ -201,13 +199,13 @@ class TestToggleInteractions:
             ("cooked", "toggle_recipe_cooked"),
         ],
     )
-    def test_remove_interaction_when_present(self, service, mock_db, interaction_type, service_method):
+    async def test_remove_interaction_when_present(self, service, mock_db, interaction_type, service_method):
         recipe_id = "recipe-123"
         user_id = "user-456"
         mock_db.has_interaction.return_value = True
         mock_db.remove_interaction.return_value = True
 
-        result = getattr(service, service_method)(recipe_id, user_id)
+        result = await getattr(service, service_method)(recipe_id, user_id)
 
         assert result is False
         mock_db.has_interaction.assert_called_once_with(recipe_id, user_id, interaction_type)
@@ -217,42 +215,41 @@ class TestToggleInteractions:
         "service_method",
         ["toggle_recipe_like", "toggle_recipe_cooked"],
     )
-    def test_recipe_not_found_on_fk_violation(self, service, mock_db, service_method):
+    async def test_recipe_not_found_on_fk_violation(self, service, mock_db, service_method):
         recipe_id = "nonexistent"
         user_id = "user-456"
         mock_db.has_interaction.return_value = False
-        # DB layer raises NotFoundException for FK violations
         mock_db.add_interaction.side_effect = NotFoundException("Referenced entity not found")
 
         with pytest.raises(NotFoundException):
-            getattr(service, service_method)(recipe_id, user_id)
+            await getattr(service, service_method)(recipe_id, user_id)
 
 
 class TestRateRecipe:
-    def test_rate_recipe_calls_upsert(self, service, mock_db):
+    async def test_rate_recipe_calls_upsert(self, service, mock_db):
         recipe_id = "recipe-123"
         user_id = "user-456"
         mock_db.upsert_interaction.return_value = {"id": "interaction-1"}
 
-        result = service.rate_recipe(recipe_id, user_id, 4)
+        result = await service.rate_recipe(recipe_id, user_id, 4)
 
         assert result == 4
         mock_db.upsert_interaction.assert_called_once_with(recipe_id, user_id, "rated", value=4)
 
     @pytest.mark.parametrize("invalid_rating", [0, 6, -1, 100])
-    def test_invalid_rating_out_of_range(self, service, mock_db, invalid_rating):
+    async def test_invalid_rating_out_of_range(self, service, mock_db, invalid_rating):
         with pytest.raises(ValueError, match="Rating must be between 1 and 5"):
-            service.rate_recipe("recipe-123", "user-456", invalid_rating)
+            await service.rate_recipe("recipe-123", "user-456", invalid_rating)
 
-    def test_recipe_not_found_on_fk_violation(self, service, mock_db):
+    async def test_recipe_not_found_on_fk_violation(self, service, mock_db):
         mock_db.upsert_interaction.side_effect = NotFoundException("Referenced entity not found")
 
         with pytest.raises(NotFoundException):
-            service.rate_recipe("nonexistent", "user-456", 4)
+            await service.rate_recipe("nonexistent", "user-456", 4)
 
 
 class TestListRecipesWithInteractions:
-    def test_includes_interactions_for_all_recipes(self, service, mock_db):
+    async def test_includes_interactions_for_all_recipes(self, service, mock_db):
         user_id = "user-456"
         mock_recipes = [
             {
@@ -279,7 +276,7 @@ class TestListRecipesWithInteractions:
         mock_db.find_recipes_with_count.return_value = (mock_recipes, 2)
         mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
 
-        result = service.list_recipes(user_id=user_id)
+        result = await service.list_recipes(user_id=user_id)
 
         assert result["items"][0]["liked"] is True
         assert result["items"][0]["cooked"] is False

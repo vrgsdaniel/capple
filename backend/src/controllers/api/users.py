@@ -1,12 +1,11 @@
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-
 from src.auth.auth import Auth
 from src.errors import ConflictException, NotFoundException
 from src.utils.general import http_error_response
 from src.utils.logger import logger as log
-from fastapi import APIRouter, Depends, HTTPException, status
-from src.db.db import DB, get_db
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from src.repository.repository import Repository, get_repository
 from src.models.household import CreateHouseholdRequest, JoinHouseholdRequest, UserHouseholdResponse
 from src.service.users import UserService
 from typing import Annotated, Dict
@@ -18,12 +17,15 @@ router = APIRouter(
 security = HTTPBearer()
 
 
-def get_user_service(db: Annotated[DB, Depends(get_db)]) -> UserService:
-    return UserService(db)
+def get_user_service(repo: Annotated[Repository, Depends(get_repository)]) -> UserService:
+    return UserService(repo)
 
 
-def get_auth_service(credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]) -> Auth:
-    return Auth(credentials.credentials)
+def get_auth_service(
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
+    request: Request,
+) -> Auth:
+    return Auth(request.app.state.store_client, credentials.credentials)
 
 
 async def get_current_user(
@@ -55,7 +57,7 @@ async def get_current_user_name(
 ) -> Dict:
     log.info("Fetching current user...")
     user_id = current_user.id
-    user = user_service.get_user_name_by_id(user_id)
+    user = await user_service.get_user_name_by_id(user_id)
     if not user:
         raise http_error_response(
             error_message="User profile not found.",
@@ -72,7 +74,7 @@ async def create_household(
 ) -> Dict:
     log.info("Creating household...")
     try:
-        return user_service.create_household(current_user.id, body.name)
+        return await user_service.create_household(current_user.id, body.name)
     except ConflictException as e:
         raise http_error_response(
             error_message=e.message,
@@ -94,7 +96,7 @@ async def join_household(
 ) -> Dict:
     log.info("Joining household...")
     try:
-        return user_service.join_household(current_user.id, body.invite_code)
+        return await user_service.join_household(current_user.id, body.invite_code)
     except ConflictException as e:
         raise http_error_response(
             error_message=e.message,
@@ -119,7 +121,7 @@ async def get_my_household(
     user_service: Annotated[UserService, Depends(get_user_service)],
 ) -> UserHouseholdResponse:
     log.info("Fetching household for current user...")
-    household = user_service.get_user_household(current_user.id)
+    household = await user_service.get_user_household(current_user.id)
     if not household:
         raise http_error_response(
             error_message="No household found for this user.",

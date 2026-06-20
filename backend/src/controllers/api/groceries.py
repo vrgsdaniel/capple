@@ -3,7 +3,7 @@ from typing import Annotated, Dict
 from fastapi import APIRouter, Depends, status
 
 from src.controllers.api.users import get_current_user
-from src.db.db import DB, get_db
+from src.repository.repository import Repository, get_repository
 from src.errors import NotFoundException
 from src.models.grocery_item import (
     AddFromRecipeRequest,
@@ -19,8 +19,8 @@ from src.utils.logger import logger as log
 router = APIRouter(tags=["groceries"])
 
 
-def get_grocery_service(db: Annotated[DB, Depends(get_db)]) -> GroceryService:
-    return GroceryService(db)
+def get_grocery_service(repo: Annotated[Repository, Depends(get_repository)]) -> GroceryService:
+    return GroceryService(repo)
 
 
 @router.get("/api/grocery-items", status_code=status.HTTP_200_OK)
@@ -29,7 +29,7 @@ async def list_grocery_items(
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> GroceryListResponse:
     try:
-        result = service.list_items(current_user.id)
+        result = await service.list_items(current_user.id)
         return GroceryListResponse(**result)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
@@ -42,7 +42,7 @@ async def add_grocery_item(
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> GroceryItemResponse:
     try:
-        return service.add_item(current_user.id, body.name, body.qty)
+        return await service.add_item(current_user.id, body.name, body.qty)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
 
@@ -55,7 +55,7 @@ async def add_from_recipe(
 ) -> list[GroceryItemResponse]:
     try:
         ingredients = [{"name": ingredient.name, "qty": ingredient.qty} for ingredient in body.ingredients]
-        return service.add_from_recipe(current_user.id, body.recipe_id, ingredients)
+        return await service.add_from_recipe(current_user.id, body.recipe_id, ingredients)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
 
@@ -70,9 +70,9 @@ async def patch_grocery_item(
     log.info(f"Patching grocery item {item_id} (bought={body.bought})")
     try:
         if body.bought:
-            return service.mark_bought(current_user.id, item_id)
+            return await service.mark_bought(current_user.id, item_id)
         else:
-            return service.restore_item(current_user.id, item_id)
+            return await service.restore_item(current_user.id, item_id)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
 
@@ -83,7 +83,7 @@ async def clear_history(
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> None:
     try:
-        service.clear_history(current_user.id)
+        await service.clear_history(current_user.id)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
 
@@ -96,6 +96,6 @@ async def delete_grocery_item(
 ) -> None:
     log.info(f"Deleting grocery item {item_id}")
     try:
-        service.remove_item(current_user.id, item_id)
+        await service.remove_item(current_user.id, item_id)
     except NotFoundException as e:
         raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)

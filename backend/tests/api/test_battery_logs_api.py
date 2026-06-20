@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from src.controllers.api.battery_logs import get_battery_log_service, router
 from src.controllers.api.users import get_current_user
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.service.battery_logs import BatteryLogService
 
 FAKE_USER = SimpleNamespace(id="00000000-0000-0000-0000-000000000001")
@@ -25,7 +25,7 @@ FAKE_LOG = {
 
 @pytest.fixture
 def mock_db():
-    return MagicMock(spec=DB)
+    return MagicMock(spec=Repository)
 
 
 @pytest.fixture
