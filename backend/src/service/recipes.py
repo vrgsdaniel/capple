@@ -37,8 +37,7 @@ class RecipeService:
         page = max(1, page)
         limit = min(100, max(1, limit))
 
-        # Fetch recipes
-        recipes = self.db.find_recipes(
+        recipes, total = self.db.find_recipes_with_count(
             search=search,
             recipe_type=recipe_type,
             labels=labels,
@@ -49,20 +48,11 @@ class RecipeService:
             limit=limit,
         )
 
-        # Enrich with user interactions if user_id provided
         if user_id and recipes:
             recipe_ids = [recipe["id"] for recipe in recipes]
             interactions_map = self.db.get_recipes_interactions_bulk(recipe_ids, user_id)
             for recipe in recipes:
                 recipe.update(interactions_map.get(recipe["id"], {}))
-
-        # Get total count
-        total = self.db.count_recipes(
-            search=search,
-            recipe_type=recipe_type,
-            labels=labels,
-            ingredients=ingredients,
-        )
 
         return {
             "items": recipes,
