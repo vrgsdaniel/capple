@@ -28,7 +28,7 @@ export const SECTIONS: Section[] = [
     id: 'tasks',
     title: 'Chores',
     icon: '🧽',
-    color: '#A78BFA',
+    color: '#4ECDC4',
     description: 'Household chores & tasks',
     render: ({ profile, household }) =>
       profile && household ? (
@@ -66,7 +66,7 @@ export const SECTIONS: Section[] = [
     id: 'groceries',
     title: 'Groceries',
     icon: '🛒',
-    color: '#4ECDC4',
+    color: '#800848',
     description: 'Manage your shopping list',
     render: ({ household }) =>
       household ? (
