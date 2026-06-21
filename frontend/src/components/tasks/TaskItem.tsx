@@ -99,7 +99,7 @@ export default function TaskItem({ task, currentUserId, onComplete, onDelete, on
       </div>
 
       {/* action buttons — revealed on hover */}
-      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-120 group-hover:opacity-100">
+      <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-120 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100">
         <button
           onClick={e => { e.stopPropagation(); onEdit(task) }}
           className="rounded p-1.5 transition-colors"
