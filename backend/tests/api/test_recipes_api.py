@@ -1,12 +1,12 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.controllers.api.recipes import router, get_recipe_service
 from src.controllers.api.users import get_current_user
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.errors import NotFoundException
 from src.service.recipes import RecipeService
 
@@ -15,7 +15,7 @@ FAKE_USER = SimpleNamespace(id="user-111")
 
 @pytest.fixture
 def mock_db():
-    return MagicMock(spec=DB)
+    return MagicMock(spec=Repository)
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ class TestGetRecipeDetails:
             "rating": 5,
             "image_uri": "https://example.com/image.jpg",
         }
-        mock_service.get_recipe_details = MagicMock(return_value=mock_recipe)
+        mock_service.get_recipe_details = AsyncMock(return_value=mock_recipe)
 
         response = client.get(f"/api/recipes/{recipe_id}")
 
@@ -61,7 +61,7 @@ class TestGetRecipeDetails:
 
     def test_not_found(self, client, mock_service):
         recipe_id = "nonexistent"
-        mock_service.get_recipe_details = MagicMock(side_effect=NotFoundException("Recipe not found."))
+        mock_service.get_recipe_details = AsyncMock(side_effect=NotFoundException("Recipe not found."))
 
         response = client.get(f"/api/recipes/{recipe_id}")
 
@@ -70,7 +70,7 @@ class TestGetRecipeDetails:
 
 class TestListRecipes:
     def test_success_no_filters(self, client, mock_service):
-        mock_service.list_recipes = MagicMock(
+        mock_service.list_recipes = AsyncMock(
             return_value={
                 "items": [
                     {
@@ -100,7 +100,7 @@ class TestListRecipes:
         assert call_kwargs["user_id"] == FAKE_USER.id
 
     def test_with_search_filter(self, client, mock_service):
-        mock_service.list_recipes = MagicMock(
+        mock_service.list_recipes = AsyncMock(
             return_value={
                 "items": [
                     {
@@ -128,7 +128,7 @@ class TestListRecipes:
         assert call_kwargs["user_id"] == FAKE_USER.id
 
     def test_with_sorting(self, client, mock_service):
-        mock_service.list_recipes = MagicMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
+        mock_service.list_recipes = AsyncMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
 
         response = client.get("/api/recipes?sort_by=rating&sort_order=desc")
 
@@ -138,7 +138,7 @@ class TestListRecipes:
         assert call_kwargs["sort_order"] == "desc"
 
     def test_with_pagination(self, client, mock_service):
-        mock_service.list_recipes = MagicMock(return_value={"items": [], "total": 50, "page": 2, "limit": 10})
+        mock_service.list_recipes = AsyncMock(return_value={"items": [], "total": 50, "page": 2, "limit": 10})
 
         response = client.get("/api/recipes?page=2&limit=10")
 
@@ -148,7 +148,7 @@ class TestListRecipes:
         assert call_kwargs["limit"] == 10
 
     def test_with_labels_filter(self, client, mock_service):
-        mock_service.list_recipes = MagicMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
+        mock_service.list_recipes = AsyncMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
 
         response = client.get("/api/recipes?labels=vegan&labels=quick")
 
@@ -191,8 +191,8 @@ class TestToggleInteractions:
             "cooked": expected_field_value if field_name == "cooked" else False,
             "user_rating": None,
         }
-        setattr(mock_service, service_method, MagicMock(return_value=toggle_value))
-        mock_service.get_recipe_details = MagicMock(return_value=mock_recipe)
+        setattr(mock_service, service_method, AsyncMock(return_value=toggle_value))
+        mock_service.get_recipe_details = AsyncMock(return_value=mock_recipe)
 
         response = client.post(f"/api/recipes/{recipe_id}/{endpoint}")
 
@@ -212,7 +212,7 @@ class TestToggleInteractions:
     )
     def test_toggle_errors(self, client, mock_service, endpoint, service_method, exception, expected_status):
         recipe_id = "recipe-123"
-        setattr(mock_service, service_method, MagicMock(side_effect=exception))
+        setattr(mock_service, service_method, AsyncMock(side_effect=exception))
 
         response = client.post(f"/api/recipes/{recipe_id}/{endpoint}")
 
@@ -241,8 +241,8 @@ class TestRateRecipe:
             "cooked": False,
             "user_rating": 4,
         }
-        mock_service.rate_recipe = MagicMock(return_value=rating)
-        mock_service.get_recipe_details = MagicMock(return_value=mock_recipe)
+        mock_service.rate_recipe = AsyncMock(return_value=rating)
+        mock_service.get_recipe_details = AsyncMock(return_value=mock_recipe)
 
         response = client.post(f"/api/recipes/{recipe_id}/rate", json={"rating": rating})
 
@@ -269,7 +269,7 @@ class TestRateRecipe:
     )
     def test_error_cases(self, client, mock_service, exception, expected_status):
         recipe_id = "recipe-123"
-        mock_service.rate_recipe = MagicMock(side_effect=exception)
+        mock_service.rate_recipe = AsyncMock(side_effect=exception)
 
         response = client.post(f"/api/recipes/{recipe_id}/rate", json={"rating": 3})
 

@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.controllers.api.users import get_current_user, get_user_service, router
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.service.users import UserService
 
 FAKE_USER = SimpleNamespace(id="user-111")
@@ -15,7 +15,7 @@ FAKE_HOUSEHOLD = {"id": FAKE_HOUSEHOLD_ID, "name": "Test Home", "invite_code": "
 
 @pytest.fixture
 def mock_db():
-    return MagicMock(spec=DB)
+    return MagicMock(spec=Repository)
 
 
 @pytest.fixture

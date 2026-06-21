@@ -4,13 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.controllers.api.infrastructure import get_healthcheck_service, router
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.service.healthcheck import HealthCheckDataService
 
 
 @pytest.fixture
 def mock_db():
-    return MagicMock(spec=DB)
+    return MagicMock(spec=Repository)
 
 
 @pytest.fixture

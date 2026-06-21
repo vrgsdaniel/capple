@@ -1,6 +1,6 @@
 import re
 
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.errors import NotFoundException
 from src.utils.general import timestamp
 from src.utils.logger import logger as log
@@ -47,50 +47,50 @@ def _merge_qty(a: str | None, b: str | None) -> str | None:
 
 
 class GroceryService:
-    def __init__(self, db: DB):
+    def __init__(self, db: Repository):
         self.db = db
 
-    def _resolve_household(self, user_id: str) -> str:
-        household = self.db.get_household_by_user(user_id)
+    async def _resolve_household(self, user_id: str) -> str:
+        household = await self.db.get_household_by_user(user_id)
         if not household:
             raise NotFoundException("You must belong to a household to manage grocery items.")
         return household["id"]
 
-    def list_items(self, user_id: str) -> dict:
-        household_id = self._resolve_household(user_id)
+    async def list_items(self, user_id: str) -> dict:
+        household_id = await self._resolve_household(user_id)
         log.info(f"Listing grocery items for household {household_id}")
-        active = self.db.find_grocery_items(household_id, bought=False)
-        history = self.db.find_grocery_items(household_id, bought=True, limit=_HISTORY_LIMIT)
+        active = await self.db.find_grocery_items(household_id, bought=False)
+        history = await self.db.find_grocery_items(household_id, bought=True, limit=_HISTORY_LIMIT)
         log.info(f"Found {len(active)} active and {len(history)} history items for household {household_id}")
         all_items = active + history
         recipe_ids = list({i["source_recipe_id"] for i in all_items if i.get("source_recipe_id")})
-        titles = self.db.get_recipe_titles_by_ids(recipe_ids)
+        titles = await self.db.get_recipe_titles_by_ids(recipe_ids)
         for item in all_items:
             item["source_recipe_title"] = titles.get(item.get("source_recipe_id"))
         return {"active": active, "history": history}
 
-    def add_item(self, user_id: str, name: str, qty: str | None) -> dict:
-        household_id = self._resolve_household(user_id)
+    async def add_item(self, user_id: str, name: str, qty: str | None) -> dict:
+        household_id = await self._resolve_household(user_id)
         key = _norm_name(name)
-        existing = self.db.find_active_grocery_item(household_id, key)
+        existing = await self.db.find_active_grocery_item(household_id, key)
         if existing:
             merged_qty = _merge_qty(existing.get("qty"), qty)
             log.info(f"Merging '{name}' into existing item {existing['id']} (qty: {existing.get('qty')!r} + {qty!r} -> {merged_qty!r})")
-            updated = self.db.update_grocery_item(existing["id"], {"qty": merged_qty}, household_id=household_id)
+            updated = await self.db.update_grocery_item(existing["id"], {"qty": merged_qty}, household_id=household_id)
             if not updated:
                 log.warning(f"Item {existing['id']} not found in household {household_id} during merge")
                 raise NotFoundException("Grocery item not found.")
             return updated
         log.info(f"Adding new grocery item '{name}' (qty={qty!r}) to household {household_id}")
-        return self.db.create_grocery_item(
+        return await self.db.create_grocery_item(
             household_id=household_id,
             name=name.strip(),
             qty=qty or None,
             added_by=user_id,
         )
 
-    def add_from_recipe(self, user_id: str, recipe_id: str, ingredients: list[dict]) -> list[dict]:
-        household_id = self._resolve_household(user_id)
+    async def add_from_recipe(self, user_id: str, recipe_id: str, ingredients: list[dict]) -> list[dict]:
+        household_id = await self._resolve_household(user_id)
         log.info(f"Adding {len(ingredients)} ingredients from recipe {recipe_id} to household {household_id}")
         results = []
         skipped = 0
@@ -108,11 +108,11 @@ class GroceryService:
             raw_qty = ing.get("qty")
             ing_qty = raw_qty if isinstance(raw_qty, str) and raw_qty else None
             key = _norm_name(ing_name)
-            existing = self.db.find_active_grocery_item(household_id, key)
+            existing = await self.db.find_active_grocery_item(household_id, key)
             if existing:
                 merged_qty = _merge_qty(existing.get("qty"), ing_qty)
                 log.info(f"Merging ingredient '{ing_name}' into existing item {existing['id']} (qty -> {merged_qty!r})")
-                updated = self.db.update_grocery_item(existing["id"], {"qty": merged_qty}, household_id=household_id)
+                updated = await self.db.update_grocery_item(existing["id"], {"qty": merged_qty}, household_id=household_id)
                 if not updated:
                     log.warning(f"Item {existing['id']} not found in household {household_id} during recipe merge")
                     raise NotFoundException("Grocery item not found.")
@@ -120,7 +120,7 @@ class GroceryService:
                 merged += 1
             else:
                 log.info(f"Adding ingredient '{ing_name}' (qty={ing_qty!r}) from recipe {recipe_id}")
-                result = self.db.create_grocery_item(
+                result = await self.db.create_grocery_item(
                     household_id=household_id,
                     name=ing_name,
                     qty=ing_qty,
@@ -132,10 +132,10 @@ class GroceryService:
         log.info(f"Recipe {recipe_id}: {created} created, {merged} merged, {skipped} skipped")
         return results
 
-    def mark_bought(self, user_id: str, item_id: str) -> dict:
-        household_id = self._resolve_household(user_id)
+    async def mark_bought(self, user_id: str, item_id: str) -> dict:
+        household_id = await self._resolve_household(user_id)
         log.info(f"Marking item {item_id} as bought for household {household_id}")
-        result = self.db.update_grocery_item(
+        result = await self.db.update_grocery_item(
             item_id, {"bought": True, "bought_at": timestamp()}, household_id=household_id
         )
         if not result:
@@ -143,43 +143,43 @@ class GroceryService:
             raise NotFoundException("Grocery item not found.")
         return result
 
-    def restore_item(self, user_id: str, item_id: str) -> dict:
-        household_id = self._resolve_household(user_id)
+    async def restore_item(self, user_id: str, item_id: str) -> dict:
+        household_id = await self._resolve_household(user_id)
         log.info(f"Restoring item {item_id} to active list for household {household_id}")
         # fetch is required here: we need name + qty to check for an active merge target
-        item = self.db.get_grocery_item(item_id, household_id)
+        item = await self.db.get_grocery_item(item_id, household_id)
         if not item:
             log.warning(f"Item {item_id} not found in household {household_id}")
             raise NotFoundException("Grocery item not found.")
         key = _norm_name(item["name"])
-        active_match = self.db.find_active_grocery_item(household_id, key)
+        active_match = await self.db.find_active_grocery_item(household_id, key)
         if active_match and active_match["id"] != item_id:
             merged_qty = _merge_qty(active_match.get("qty"), item.get("qty"))
             log.info(f"Merging restored item {item_id} into active item {active_match['id']} (qty -> {merged_qty!r})")
-            updated = self.db.update_grocery_item(active_match["id"], {"qty": merged_qty}, household_id=household_id)
+            updated = await self.db.update_grocery_item(active_match["id"], {"qty": merged_qty}, household_id=household_id)
             if not updated:
                 log.warning(f"Active merge target {active_match['id']} not found in household {household_id}")
                 raise NotFoundException("Grocery item not found.")
-            deleted = self.db.delete_grocery_item(item_id, household_id=household_id)
+            deleted = await self.db.delete_grocery_item(item_id, household_id=household_id)
             if not deleted:
                 log.warning(f"Restored source item {item_id} not found in household {household_id}")
                 raise NotFoundException("Grocery item not found.")
             return updated
-        restored = self.db.update_grocery_item(item_id, {"bought": False, "bought_at": None}, household_id=household_id)
+        restored = await self.db.update_grocery_item(item_id, {"bought": False, "bought_at": None}, household_id=household_id)
         if not restored:
             log.warning(f"Item {item_id} not found in household {household_id} during restore")
             raise NotFoundException("Grocery item not found.")
         return restored
 
-    def remove_item(self, user_id: str, item_id: str) -> None:
-        household_id = self._resolve_household(user_id)
+    async def remove_item(self, user_id: str, item_id: str) -> None:
+        household_id = await self._resolve_household(user_id)
         log.info(f"Removing item {item_id} from household {household_id}")
-        deleted = self.db.delete_grocery_item(item_id, household_id=household_id)
+        deleted = await self.db.delete_grocery_item(item_id, household_id=household_id)
         if not deleted:
             log.warning(f"Item {item_id} not found in household {household_id}")
             raise NotFoundException("Grocery item not found.")
 
-    def clear_history(self, user_id: str) -> None:
-        household_id = self._resolve_household(user_id)
+    async def clear_history(self, user_id: str) -> None:
+        household_id = await self._resolve_household(user_id)
         log.info(f"Clearing bought history for household {household_id}")
-        self.db.delete_bought_grocery_items(household_id)
+        await self.db.delete_bought_grocery_items(household_id)

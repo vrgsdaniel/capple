@@ -1,7 +1,7 @@
 from src.utils.logger import logger as log
 from fastapi import APIRouter, Depends, status
 from src.utils.general import http_error_response
-from src.db.db import DB, get_db
+from src.repository.repository import Repository, get_repository
 from src.service.healthcheck import HealthCheckDataService
 from src.models.error_response import HttpErrorResponse
 from src.models.infra import ReadinessResponse
@@ -12,8 +12,8 @@ router = APIRouter(
 )
 
 
-def get_healthcheck_service(db: Annotated[DB, Depends(get_db)]) -> HealthCheckDataService:
-    return HealthCheckDataService(db)
+def get_healthcheck_service(repo: Annotated[Repository, Depends(get_repository)]) -> HealthCheckDataService:
+    return HealthCheckDataService(repo)
 
 
 @router.get("/api/healthcheck", status_code=status.HTTP_200_OK)
@@ -31,7 +31,7 @@ async def readiness(
     readiness_service: Annotated[HealthCheckDataService, Depends(get_healthcheck_service)],
 ) -> ReadinessResponse:
     log.info("Running readiness probe...")
-    availability = readiness_service.availability()
+    availability = await readiness_service.availability()
     is_ready = all(value for value in availability.values())
     if not is_ready:
         raise http_error_response(

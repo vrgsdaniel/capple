@@ -2,17 +2,23 @@ from __future__ import annotations
 
 from typing import Literal, overload
 
-from supabase import Client
+from supabase import AsyncClient, acreate_client
 from postgrest.exceptions import APIError
 
-from src.db.criteria import Criteria
+from src.repository.criteria import Criteria
 from src.errors import ConflictException, NotFoundException
+from src.settings import get_supabase_settings
+
+
+async def create_store_client() -> AsyncClient:
+    settings = get_supabase_settings()
+    return await acreate_client(settings.url, settings.service_role_key)
 
 
 class Store:
     """Generic table store that applies :class:`Criteria` to Supabase queries."""
 
-    def __init__(self, client: Client, table_name: str, schema_name: str = "app") -> None:
+    def __init__(self, client: AsyncClient, table_name: str, schema_name: str = "app") -> None:
         self._client = client
         self._table_name = table_name
         self._schema_name = schema_name
@@ -36,29 +42,29 @@ class Store:
         return query
 
     @overload
-    def find(self, criteria: Criteria | None = None, *, with_count: Literal[False] = False) -> list[dict]: ...
+    async def find(self, criteria: Criteria | None = None, *, with_count: Literal[False] = False) -> list[dict]: ...
     @overload
-    def find(self, criteria: Criteria | None = None, *, with_count: Literal[True]) -> tuple[list[dict], int]: ...
+    async def find(self, criteria: Criteria | None = None, *, with_count: Literal[True]) -> tuple[list[dict], int]: ...
 
-    def find(self, criteria: Criteria | None = None, *, with_count: bool = False):
+    async def find(self, criteria: Criteria | None = None, *, with_count: bool = False):
         criteria = criteria or Criteria()
-        result = self._build_query(criteria, count="exact" if with_count else None).execute()
+        result = await self._build_query(criteria, count="exact" if with_count else None).execute()
         if with_count:
             return result.data, (result.count or 0)
         return result.data
 
-    def find_one(self, criteria: Criteria | None = None) -> dict | None:
+    async def find_one(self, criteria: Criteria | None = None) -> dict | None:
         criteria = criteria or Criteria()
         criteria.limit(1)
-        data = self.find(criteria)
+        data = await self.find(criteria)
         return data[0] if data else None
 
-    def get_by_id(self, entity_id: str) -> dict | None:
-        return self.find_one(Criteria().eq("id", entity_id))
+    async def get_by_id(self, entity_id: str) -> dict | None:
+        return await self.find_one(Criteria().eq("id", entity_id))
 
-    def insert(self, data: dict) -> dict:
+    async def insert(self, data: dict) -> dict:
         try:
-            result = self._table().insert(data).execute()
+            result = await self._table().insert(data).execute()
         except APIError as e:
             if e.code == "23505":
                 raise ConflictException(f"Duplicate entry in {self._table_name}") from e
@@ -67,30 +73,30 @@ class Store:
             raise
         return result.data[0]
 
-    def upsert(self, data: dict, on_conflict: str) -> dict:
+    async def upsert(self, data: dict, on_conflict: str) -> dict:
         """Insert or update on conflict. *on_conflict* is a comma-separated list of column names
         that map to a unique constraint (used by PostgREST for ON CONFLICT targeting)."""
         try:
-            result = self._table().upsert(data, on_conflict=on_conflict).execute()
+            result = await self._table().upsert(data, on_conflict=on_conflict).execute()
         except APIError as e:
             if e.code == "23503":
                 raise NotFoundException(f"Referenced entity not found for {self._table_name}") from e
             raise
         return result.data[0]
 
-    def update(self, entity_id: str, data: dict) -> dict | None:
-        result = self._table().update(data).eq("id", entity_id).execute()
+    async def update(self, entity_id: str, data: dict) -> dict | None:
+        result = await self._table().update(data).eq("id", entity_id).execute()
         return result.data[0] if result.data else None
 
-    def update_where(self, criteria: Criteria, data: dict) -> list[dict]:
+    async def update_where(self, criteria: Criteria, data: dict) -> list[dict]:
         query = self._apply_filters(self._table().update(data), criteria)
-        return query.execute().data
+        return (await query.execute()).data
 
-    def delete(self, entity_id: str) -> None:
-        self._table().delete().eq("id", entity_id).execute()
+    async def delete(self, entity_id: str) -> None:
+        await self._table().delete().eq("id", entity_id).execute()
 
-    def delete_where(self, criteria: Criteria) -> list[dict]:
+    async def delete_where(self, criteria: Criteria) -> list[dict]:
         query = self._table().delete()
         query = self._apply_filters(query, criteria)
-        result = query.execute()
+        result = await query.execute()
         return result.data

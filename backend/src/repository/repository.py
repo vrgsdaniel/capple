@@ -1,19 +1,19 @@
 import re
 
-from supabase import create_client, Client
-from src.settings import get_supabase_settings
-from src.db.criteria import Criteria
-from src.db.store import Store
+from fastapi import Request
+from supabase import AsyncClient
+
+from src.repository.criteria import Criteria
+from src.repository.store import Store
 from src.utils.general import timestamp
 from src.utils.logger import logger as log
 
 
-class DB:
+class Repository:
     _APP_SCHEMA = "app"
 
-    def __init__(self):
-        settings = get_supabase_settings()
-        self.client: Client = create_client(settings.url, settings.service_role_key)
+    def __init__(self, client: AsyncClient):
+        self.client = client
 
     def store(self, table_name: str) -> Store:
         """Return a :class:`Store` bound to *table_name*."""
@@ -23,9 +23,9 @@ class DB:
     def _normalize_grocery_name(name: str) -> str:
         return re.sub(r"\s+", " ", str(name or "").lower().strip())
 
-    def is_alive(self) -> bool:
+    async def is_alive(self) -> bool:
         try:
-            self.store("profiles").find_one(Criteria().select("id"))
+            await self.store("profiles").find_one(Criteria().select("id"))
             return True
         except Exception:
             log.exception("Database connection failed")
@@ -33,35 +33,37 @@ class DB:
 
     # --- profiles ---
 
-    def get_profile_by_id(self, user_id: str) -> dict | None:
-        return self.store("profiles").get_by_id(user_id)
+    async def get_profile_by_id(self, user_id: str) -> dict | None:
+        return await self.store("profiles").get_by_id(user_id)
 
     # --- households ---
 
-    def create_household(self, name: str, created_by: str) -> dict:
-        return self.store("households").insert({"name": name, "created_by": created_by})
+    async def create_household(self, name: str, created_by: str) -> dict:
+        return await self.store("households").insert({"name": name, "created_by": created_by})
 
-    def get_household_by_code(self, invite_code: str) -> dict | None:
-        return self.store("households").find_one(Criteria().eq("invite_code", invite_code))
+    async def get_household_by_code(self, invite_code: str) -> dict | None:
+        return await self.store("households").find_one(Criteria().eq("invite_code", invite_code))
 
-    def get_household_by_user(self, user_id: str) -> dict | None:
-        membership = self.store("household_members").find_one(Criteria().eq("user_id", user_id))
+    async def get_household_by_user(self, user_id: str) -> dict | None:
+        membership = await self.store("household_members").find_one(Criteria().eq("user_id", user_id))
         if not membership:
             return None
-        household = self.store("households").get_by_id(membership["household_id"])
+        household = await self.store("households").get_by_id(membership["household_id"])
         if not household:
             return None
         return {**household, "role": membership["role"]}
 
-    def add_member_to_household(self, household_id: str, user_id: str, role: str = "member") -> dict:
-        return self.store("household_members").insert({"household_id": household_id, "user_id": user_id, "role": role})
+    async def add_member_to_household(self, household_id: str, user_id: str, role: str = "member") -> dict:
+        return await self.store("household_members").insert(
+            {"household_id": household_id, "user_id": user_id, "role": role}
+        )
 
     # --- battery_logs ---
 
-    def create_battery_log(
+    async def create_battery_log(
         self, user_id: str, household_id: str, level: int, note: str | None, effective_at: str
     ) -> dict:
-        return self.store("battery_logs").insert(
+        return await self.store("battery_logs").insert(
             {
                 "user_id": user_id,
                 "household_id": household_id,
@@ -71,19 +73,19 @@ class DB:
             }
         )
 
-    def update_battery_log(self, log_id: str, user_id: str, data: dict) -> dict | None:
-        result = self.store("battery_logs").update_where(
+    async def update_battery_log(self, log_id: str, user_id: str, data: dict) -> dict | None:
+        result = await self.store("battery_logs").update_where(
             Criteria().eq("id", log_id).eq("user_id", user_id),
             data,
         )
         return result[0] if result else None
 
-    def delete_battery_log(self, log_id: str, user_id: str) -> bool:
-        result = self.store("battery_logs").delete_where(Criteria().eq("id", log_id).eq("user_id", user_id))
+    async def delete_battery_log(self, log_id: str, user_id: str) -> bool:
+        result = await self.store("battery_logs").delete_where(Criteria().eq("id", log_id).eq("user_id", user_id))
         return len(result) > 0
 
-    def find_battery_logs_by_household(self, household_id: str, start: str, end: str) -> list[dict]:
-        return self.store("battery_logs").find(
+    async def find_battery_logs_by_household(self, household_id: str, start: str, end: str) -> list[dict]:
+        return await self.store("battery_logs").find(
             Criteria()
             .eq("household_id", household_id)
             .gte("effective_at", start)
@@ -93,11 +95,11 @@ class DB:
 
     # --- recipes ---
 
-    def get_recipe_by_id(self, recipe_id: str) -> dict | None:
+    async def get_recipe_by_id(self, recipe_id: str) -> dict | None:
         """Get full recipe details row."""
-        return self.store("recipes").find_one(Criteria().eq("id", recipe_id))
+        return await self.store("recipes").find_one(Criteria().eq("id", recipe_id))
 
-    def find_recipes_with_count(
+    async def find_recipes_with_count(
         self,
         search: str | None = None,
         recipe_type: str | None = None,
@@ -130,7 +132,7 @@ class DB:
         offset = (page - 1) * limit
         criteria = criteria.limit(limit).offset(offset)
 
-        recipes, total = self.store("recipes").find(criteria, with_count=True)
+        recipes, total = await self.store("recipes").find(criteria, with_count=True)
 
         # Filter by labels/ingredients (client-side for simplicity, can be optimized later)
         if labels or ingredients:
@@ -155,9 +157,9 @@ class DB:
 
     # --- recipe user interactions ---
 
-    def get_recipe_interactions(self, recipe_id: str, user_id: str) -> dict:
+    async def get_recipe_interactions(self, recipe_id: str, user_id: str) -> dict:
         """Get all interactions for a specific recipe and user. Returns dict with liked, cooked, user_rating."""
-        interactions = self.store("recipe_user_interactions").find(
+        interactions = await self.store("recipe_user_interactions").find(
             Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id)
         )
         result = {"liked": False, "cooked": False, "user_rating": None}
@@ -170,19 +172,16 @@ class DB:
                 result["user_rating"] = interaction.get("value")
         return result
 
-    def get_recipes_interactions_bulk(self, recipe_ids: list[str], user_id: str) -> dict[str, dict]:
+    async def get_recipes_interactions_bulk(self, recipe_ids: list[str], user_id: str) -> dict[str, dict]:
         """Get interactions for multiple recipes. Returns dict mapping recipe_id -> {liked, cooked, user_rating}."""
         if not recipe_ids:
             return {}
 
-        interactions = self.store("recipe_user_interactions").find(
+        interactions = await self.store("recipe_user_interactions").find(
             Criteria().eq("user_id", user_id).in_("recipe_id", recipe_ids)
         )
 
-        # Initialize all recipes with no interactions
         result = {recipe_id: {"liked": False, "cooked": False, "user_rating": None} for recipe_id in recipe_ids}
-
-        # Populate with actual interactions
         for interaction in interactions:
             recipe_id = interaction["recipe_id"]
             if interaction["interaction_type"] == "liked":
@@ -194,16 +193,18 @@ class DB:
 
         return result
 
-    def has_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
+    async def has_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
         """Check if user has an interaction for recipe."""
-        result = self.store("recipe_user_interactions").find_one(
+        result = await self.store("recipe_user_interactions").find_one(
             Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id).eq("interaction_type", interaction_type)
         )
         return result is not None
 
-    def add_interaction(self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None) -> dict:
+    async def add_interaction(
+        self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None
+    ) -> dict:
         """Add a user recipe interaction (like, cooked, rated)."""
-        return self.store("recipe_user_interactions").insert(
+        return await self.store("recipe_user_interactions").insert(
             {
                 "recipe_id": recipe_id,
                 "user_id": user_id,
@@ -212,11 +213,11 @@ class DB:
             }
         )
 
-    def upsert_interaction(
+    async def upsert_interaction(
         self, recipe_id: str, user_id: str, interaction_type: str, value: int | None = None
     ) -> dict:
         """Insert or update a user recipe interaction in a single DB call."""
-        return self.store("recipe_user_interactions").upsert(
+        return await self.store("recipe_user_interactions").upsert(
             {
                 "recipe_id": recipe_id,
                 "user_id": user_id,
@@ -226,34 +227,35 @@ class DB:
             on_conflict="user_id,recipe_id,interaction_type",
         )
 
-    def remove_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
+    async def remove_interaction(self, recipe_id: str, user_id: str, interaction_type: str) -> bool:
         """Remove a user recipe interaction."""
         criteria = (
             Criteria().eq("user_id", user_id).eq("recipe_id", recipe_id).eq("interaction_type", interaction_type)
         )
-
-        result = self.store("recipe_user_interactions").delete_where(criteria)
+        result = await self.store("recipe_user_interactions").delete_where(criteria)
         return len(result) > 0
 
     # --- grocery items ---
 
-    def find_grocery_items(self, household_id: str, bought: bool, limit: int | None = None) -> list[dict]:
+    async def find_grocery_items(self, household_id: str, bought: bool, limit: int | None = None) -> list[dict]:
         criteria = (
             Criteria().eq("household_id", household_id).eq("bought", bought).order("created_at", ascending=False)
         )
         if limit is not None:
             criteria = criteria.limit(limit)
-        return self.store("grocery_items").find(criteria)
+        return await self.store("grocery_items").find(criteria)
 
-    def find_active_grocery_item(self, household_id: str, norm_name: str) -> dict | None:
-        return self.store("grocery_items").find_one(
+    async def find_active_grocery_item(self, household_id: str, norm_name: str) -> dict | None:
+        return await self.store("grocery_items").find_one(
             Criteria().eq("household_id", household_id).eq("bought", False).eq("normalized_name", norm_name)
         )
 
-    def get_grocery_item(self, item_id: str, household_id: str) -> dict | None:
-        return self.store("grocery_items").find_one(Criteria().eq("id", item_id).eq("household_id", household_id))
+    async def get_grocery_item(self, item_id: str, household_id: str) -> dict | None:
+        return await self.store("grocery_items").find_one(
+            Criteria().eq("id", item_id).eq("household_id", household_id)
+        )
 
-    def create_grocery_item(
+    async def create_grocery_item(
         self,
         household_id: str,
         name: str,
@@ -272,37 +274,39 @@ class DB:
             data["added_by"] = added_by
         if source_recipe_id is not None:
             data["source_recipe_id"] = source_recipe_id
-        return self.store("grocery_items").insert(data)
+        return await self.store("grocery_items").insert(data)
 
-    def update_grocery_item(self, item_id: str, data: dict, household_id: str | None = None) -> dict | None:
+    async def update_grocery_item(self, item_id: str, data: dict, household_id: str | None = None) -> dict | None:
         update_data = dict(data)
         if "name" in update_data and isinstance(update_data["name"], str):
             update_data["normalized_name"] = self._normalize_grocery_name(update_data["name"])
         criteria = Criteria().eq("id", item_id)
         if household_id is not None:
             criteria = criteria.eq("household_id", household_id)
-        result = self.store("grocery_items").update_where(criteria, update_data)
+        result = await self.store("grocery_items").update_where(criteria, update_data)
         return result[0] if result else None
 
-    def delete_grocery_item(self, item_id: str, household_id: str | None = None) -> bool:
+    async def delete_grocery_item(self, item_id: str, household_id: str | None = None) -> bool:
         criteria = Criteria().eq("id", item_id)
         if household_id is not None:
             criteria = criteria.eq("household_id", household_id)
-        result = self.store("grocery_items").delete_where(criteria)
+        result = await self.store("grocery_items").delete_where(criteria)
         return len(result) > 0
 
-    def get_recipe_titles_by_ids(self, recipe_ids: list[str]) -> dict[str, str]:
+    async def get_recipe_titles_by_ids(self, recipe_ids: list[str]) -> dict[str, str]:
         if not recipe_ids:
             return {}
-        rows = self.store("recipes").find(Criteria().in_("id", recipe_ids).select("id,name"))
+        rows = await self.store("recipes").find(Criteria().in_("id", recipe_ids).select("id,name"))
         return {row["id"]: row["name"] for row in rows}
 
-    def delete_bought_grocery_items(self, household_id: str) -> None:
-        self.store("grocery_items").delete_where(Criteria().eq("household_id", household_id).eq("bought", True))
+    async def delete_bought_grocery_items(self, household_id: str) -> None:
+        await self.store("grocery_items").delete_where(
+            Criteria().eq("household_id", household_id).eq("bought", True)
+        )
 
     # --- tasks ---
 
-    def find_tasks_with_count(
+    async def find_tasks_with_count(
         self,
         household_id: str,
         page: int = 1,
@@ -314,7 +318,7 @@ class DB:
         if not include_history:
             criteria = criteria.is_("completed_at", None)
 
-        all_tasks = self.store("tasks").find(criteria)
+        all_tasks = await self.store("tasks").find(criteria)
 
         active = sorted(
             (t for t in all_tasks if t["completed_at"] is None),
@@ -334,10 +338,10 @@ class DB:
             len(history),
         )
 
-    def get_task(self, task_id: str, household_id: str) -> dict | None:
-        return self.store("tasks").find_one(Criteria().eq("id", task_id).eq("household_id", household_id))
+    async def get_task(self, task_id: str, household_id: str) -> dict | None:
+        return await self.store("tasks").find_one(Criteria().eq("id", task_id).eq("household_id", household_id))
 
-    def create_task(
+    async def create_task(
         self,
         household_id: str,
         name: str,
@@ -359,9 +363,9 @@ class DB:
             data["due_date"] = due_date
         if frequency is not None:
             data["frequency"] = frequency
-        return self.store("tasks").insert(data)
+        return await self.store("tasks").insert(data)
 
-    def update_task(
+    async def update_task(
         self,
         task_id: str,
         data: dict,
@@ -373,19 +377,19 @@ class DB:
             criteria = criteria.eq("household_id", household_id)
         if active_only:
             criteria = criteria.is_("completed_at", None)
-        result = self.store("tasks").update_where(criteria, {**data, "updated_at": timestamp()})
+        result = await self.store("tasks").update_where(criteria, {**data, "updated_at": timestamp()})
         return result[0] if result else None
 
-    def delete_task(self, task_id: str, household_id: str | None = None, active_only: bool = False) -> bool:
+    async def delete_task(self, task_id: str, household_id: str | None = None, active_only: bool = False) -> bool:
         criteria = Criteria().eq("id", task_id)
         if household_id is not None:
             criteria = criteria.eq("household_id", household_id)
         if active_only:
             criteria = criteria.is_("completed_at", None)
-        result = self.store("tasks").delete_where(criteria)
+        result = await self.store("tasks").delete_where(criteria)
         return len(result) > 0
 
 
-def get_db() -> DB:
-    """Factory function for DB to allow dependency injection."""
-    return DB()
+def get_repository(request: Request) -> Repository:
+    """FastAPI dependency that returns a Repository backed by the shared async client."""
+    return Repository(request.app.state.store_client)

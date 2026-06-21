@@ -21,7 +21,7 @@ def _compute_trend(daily_avgs: list[float]) -> str:
     return "stable"
 
 
-def build_battery_tool(db, household_id: str, user_id: str) -> BatteryContext:
+async def build_battery_tool(db, household_id: str, user_id: str) -> BatteryContext:
     """Build household social battery context for the last 30 days."""
 
     if not household_id or not user_id:
@@ -30,7 +30,7 @@ def build_battery_tool(db, household_id: str, user_id: str) -> BatteryContext:
     now = datetime.now(timezone.utc)
     since = (now - timedelta(days=30)).isoformat()
     end = now.isoformat()
-    logs = db.find_battery_logs_by_household(household_id, since, end)
+    logs = await db.find_battery_logs_by_household(household_id, since, end)
 
     your_logs = [log for log in logs if log["user_id"] == user_id]
     partner_logs = [log for log in logs if log["user_id"] != user_id]
@@ -70,8 +70,8 @@ def build_battery_tool(db, household_id: str, user_id: str) -> BatteryContext:
 def create_battery_context_tool(context: GraphContext) -> tool:
     @tool("get_battery_tool")
     @log_tool_call("get_battery_tool")
-    def get_battery_tool() -> BatteryContext:
+    async def get_battery_tool() -> BatteryContext:
         """Get household social battery context for the last 30 days."""
-        return build_battery_tool(context.db_client, context.household_id, context.user_id)
+        return await build_battery_tool(context.db_client, context.household_id, context.user_id)
 
     return get_battery_tool

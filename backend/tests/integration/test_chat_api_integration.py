@@ -6,8 +6,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from src.agents.graph import build_graph
-from src.controllers.api.chat import get_chatbot, get_current_user, get_db, router
-from src.db.db import DB
+from src.controllers.api.chat import get_chatbot, get_current_user, get_repository, router
+from src.repository.repository import Repository
 from tests.integration.conftest import ChatApiIntegrationSettings
 
 FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Home", "invite_code": "abc123", "role": "owner"}
@@ -64,7 +64,7 @@ def _authorized_headers(integration_settings: ChatApiIntegrationSettings) -> dic
 
 @pytest.fixture
 def mock_db():
-    db = MagicMock(spec=DB)
+    db = MagicMock(spec=Repository)
     db.get_household_by_user.return_value = FAKE_HOUSEHOLD
     return db
 
@@ -83,7 +83,7 @@ def client(mock_db, integration_settings: ChatApiIntegrationSettings):
     # Default mode is fully mocked for fast and deterministic debugging.
     # Set CAPPLE_TEST_USE_REAL_AUTH/DB/CHATBOT=true to opt in to real dependencies.
     if not integration_settings.use_real_db:
-        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_repository] = lambda: mock_db
     if not integration_settings.use_real_chatbot:
         app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
@@ -102,7 +102,7 @@ def unauthorized_client(mock_db, integration_settings: ChatApiIntegrationSetting
     if not integration_settings.use_real_auth:
         app.dependency_overrides[get_current_user] = _unauthorized_user
     if not integration_settings.use_real_db:
-        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_repository] = lambda: mock_db
     if not integration_settings.use_real_chatbot:
         app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 

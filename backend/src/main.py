@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from src.settings import get_settings
 from src.agents.graph import build_graph
+from src.repository.store import create_store_client
 
 from src.controllers.api import routers
 from src.utils.general import timestamp
@@ -23,6 +24,7 @@ setup_json_logging(service=get_settings().service_name, environment=get_settings
 @asynccontextmanager
 async def app_lifespan(app: FastAPI):
     """Manage application lifecycle: startup and shutdown events."""
+    app.state.store_client = await create_store_client()
     app.state.chat_graph = build_graph()
     log.info("Application startup complete")
     yield

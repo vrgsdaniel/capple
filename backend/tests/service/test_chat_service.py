@@ -5,7 +5,7 @@ from json import JSONDecodeError
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage
 
-from src.db.db import DB
+from src.repository.repository import Repository
 from src.service.chat import ChatService
 
 
@@ -37,7 +37,7 @@ class FakeChatbot:
 
 @pytest.fixture
 def mock_db():
-    return MagicMock(spec=DB)
+    return MagicMock(spec=Repository)
 
 
 class TestBuildInitialState:
@@ -67,7 +67,7 @@ class TestBuildInitialState:
 
 
 class TestStreamResponse:
-    def test_prefers_graph_assistant_message_when_available(self, mock_db):
+    async def test_prefers_graph_assistant_message_when_available(self, mock_db):
         fake_chatbot = FakeChatbot(chunks=["fallback should not be used"])
         fake_graph = FakeGraph(
             prepared_state={
@@ -79,17 +79,21 @@ class TestStreamResponse:
         )
         service = ChatService("user-111", "hh-001", mock_db, fake_chatbot, fake_graph)
 
-        result = list(service.stream_response("how is my partner doing?", []))
+        result = []
+        async for chunk in service.stream_response("how is my partner doing?", []):
+            result.append(chunk)
 
         assert result == ["Partner trend is declining and last log was 11 days ago."]
         assert fake_chatbot.stream_calls == 0
 
-    def test_yields_streamed_chunks_from_chatbot(self, mock_db):
+    async def test_yields_streamed_chunks_from_chatbot(self, mock_db):
         fake_chatbot = FakeChatbot(chunks=["first ", "reply", " second", " reply"])
         fake_graph = FakeGraph(prepared_state={"system_prompt": "prep prompt"})
         service = ChatService("user-111", "hh-001", mock_db, fake_chatbot, fake_graph)
 
-        result = list(service.stream_response("how are we", [{"role": "user", "content": "old"}]))
+        result = []
+        async for chunk in service.stream_response("how are we", [{"role": "user", "content": "old"}]):
+            result.append(chunk)
 
         assert result == ["first ", "reply", " second", " reply"]
         assert fake_graph.last_state is not None
@@ -98,28 +102,33 @@ class TestStreamResponse:
         assert fake_graph.last_context is not None
         assert fake_graph.last_context.db_client is mock_db
 
-    def test_ignores_empty_stream_chunks(self, mock_db):
+    async def test_ignores_empty_stream_chunks(self, mock_db):
         fake_chatbot = FakeChatbot(chunks=["", "ok"])
         fake_graph = FakeGraph(prepared_state={"system_prompt": "prep prompt"})
         service = ChatService("user-111", "hh-001", mock_db, fake_chatbot, fake_graph)
 
-        result = list(service.stream_response("new", []))
+        result = []
+        async for chunk in service.stream_response("new", []):
+            result.append(chunk)
 
         assert result == ["ok"]
 
-    def test_tolerates_terminal_json_decode_error_after_valid_chunks(self, mock_db):
+    async def test_tolerates_terminal_json_decode_error_after_valid_chunks(self, mock_db):
         fake_chatbot = FakeChatbot(chunks=["partial", " reply"], raise_json_error_after_chunks=True)
         fake_graph = FakeGraph(prepared_state={"system_prompt": "prep prompt"})
         service = ChatService("user-111", "hh-001", mock_db, fake_chatbot, fake_graph)
 
-        result = list(service.stream_response("new", []))
+        result = []
+        async for chunk in service.stream_response("new", []):
+            result.append(chunk)
 
         assert result == ["partial", " reply"]
 
-    def test_raises_json_decode_error_when_no_chunk_was_emitted(self, mock_db):
+    async def test_raises_json_decode_error_when_no_chunk_was_emitted(self, mock_db):
         fake_chatbot = FakeChatbot(chunks=[], raise_json_error_after_chunks=True)
         fake_graph = FakeGraph(prepared_state={"system_prompt": "prep prompt"})
         service = ChatService("user-111", "hh-001", mock_db, fake_chatbot, fake_graph)
 
         with pytest.raises(JSONDecodeError):
-            list(service.stream_response("new", []))
+            async for _ in service.stream_response("new", []):
+                pass

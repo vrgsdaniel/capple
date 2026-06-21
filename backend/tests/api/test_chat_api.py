@@ -6,23 +6,21 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.controllers.api.chat import get_chatbot, get_current_user, get_db, router
-from src.db.db import DB
+from src.controllers.api.chat import get_chatbot, get_current_user, get_repository, router
+from src.repository.repository import Repository
 
 FAKE_USER = SimpleNamespace(id="user-111")
 FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Home", "invite_code": "abc123", "role": "owner"}
 
 
 class FakeGraph:
-    def invoke(self, state, config=None, context=None):
+    def invoke(self, state, context=None):
         assert context.db_client
         return {**state, "system_prompt": "prep prompt", "battery_context": {"total_entries": 2}}
 
 
 class FakeGraphFailBeforeFirstChunk:
-    def invoke(self, _state, config=None):
-        assert isinstance(config, dict)
-        assert "db_client" in config
+    def invoke(self, _state, context=None):
         raise ValueError("{'error': 'missing llm env vars'}")
 
 
@@ -43,7 +41,7 @@ class FakeChatbot:
 
 @pytest.fixture
 def mock_db():
-    db = MagicMock(spec=DB)
+    db = MagicMock(spec=Repository)
     db.get_household_by_user.return_value = FAKE_HOUSEHOLD
     return db
 
@@ -55,7 +53,7 @@ def client(mock_db):
     app.state.chat_graph = FakeGraph()
 
     app.dependency_overrides[get_current_user] = lambda: FAKE_USER
-    app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[get_repository] = lambda: mock_db
     app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
     return TestClient(app)
@@ -83,7 +81,7 @@ class TestChatApi:
         app.include_router(router)
         app.state.chat_graph = FakeGraph()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
-        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_repository] = lambda: mock_db
         app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
         client = TestClient(app, raise_server_exceptions=False)
@@ -96,7 +94,7 @@ class TestChatApi:
         app.include_router(router)
         app.state.chat_graph = FakeGraphFailBeforeFirstChunk()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
-        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_repository] = lambda: mock_db
         app.dependency_overrides[get_chatbot] = lambda: FakeChatbot()
 
         client = TestClient(app, raise_server_exceptions=False)
@@ -110,7 +108,7 @@ class TestChatApi:
         app.include_router(router)
         app.state.chat_graph = FakeGraph()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
-        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_repository] = lambda: mock_db
         app.dependency_overrides[get_chatbot] = lambda: FakeChatbot(
             chunks=["hello before error", "ignored"], error_after_first=True
         )
@@ -127,7 +125,7 @@ class TestChatApi:
         app.include_router(router)
         app.state.chat_graph = FakeGraph()
         app.dependency_overrides[get_current_user] = lambda: FAKE_USER
-        app.dependency_overrides[get_db] = lambda: mock_db
+        app.dependency_overrides[get_repository] = lambda: mock_db
         app.dependency_overrides[get_chatbot] = lambda: FakeChatbot(
             chunks=["hello", " world"],
             raise_json_error_after_chunks=True,

@@ -1,18 +1,14 @@
-from src.db.db import DB
+from src.repository.repository import Repository
 
 
 class HealthCheckDataService:
-    """Minimal availability checks for the readiness probe.
+    """Minimal availability checks for the readiness probe."""
 
-    Extend ``availability`` to verify external dependencies (e.g. database
-    connections, cache) as the service grows.
-    """
-
-    def __init__(self, db: DB):
+    def __init__(self, db: Repository):
         self.db = db
 
-    def availability(self) -> dict[str, bool]:
+    async def availability(self) -> dict[str, bool]:
         return {
             "service": True,
-            "database": self.db.is_alive(),
+            "database": await self.db.is_alive(),
         }
