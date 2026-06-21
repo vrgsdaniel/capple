@@ -63,7 +63,7 @@ export default function GroceryItem({ item, onMarkBought, onRemove }: Props) {
       {/* remove button — revealed on row hover */}
       <button
         onClick={() => onRemove(item.id)}
-        className="grocery-remove shrink-0 rounded p-1 opacity-0 transition-all duration-120 group-hover:opacity-100"
+        className="grocery-remove shrink-0 rounded p-1 opacity-0 transition-all duration-120 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100"
         style={{ color: 'var(--m-fg-4)' }}
         aria-label="Remove item"
       >

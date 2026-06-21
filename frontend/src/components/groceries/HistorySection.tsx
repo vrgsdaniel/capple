@@ -109,7 +109,7 @@ function HistoryRow({ item, onReAdd }: { item: GroceryItem; onReAdd: (id: string
       <button
         onClick={handleReAdd}
         disabled={loading}
-        className="grocery-readd shrink-0 rounded p-1 opacity-0 transition-all duration-120 group-hover:opacity-100 disabled:opacity-40"
+        className="grocery-readd shrink-0 rounded p-1 opacity-0 transition-all duration-120 group-hover:opacity-100 [@media(pointer:coarse)]:opacity-100 disabled:opacity-40"
         style={{ color: 'var(--m-fg-4)' }}
         aria-label="Add back to list"
         onMouseEnter={e => (e.currentTarget.style.color = 'var(--m-accent)')}
