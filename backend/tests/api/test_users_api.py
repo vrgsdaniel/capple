@@ -8,7 +8,9 @@ from src.controllers.api.users import get_current_user, get_user_service, router
 from src.repository.repository import Repository
 from src.service.users import UserService
 
-FAKE_USER = SimpleNamespace(id="user-111")
+FAKE_USER_ID = "00000000-0000-0000-0000-000000000111"
+FAKE_USER = SimpleNamespace(id=FAKE_USER_ID)
+FAKE_OTHER_USER_ID = "00000000-0000-0000-0000-000000000222"
 FAKE_HOUSEHOLD_ID = "00000000-0000-0000-0000-000000000001"
 FAKE_HOUSEHOLD = {"id": FAKE_HOUSEHOLD_ID, "name": "Test Home", "invite_code": "abc123"}
 
@@ -43,7 +45,7 @@ class TestGetMe:
         resp = client.get("/api/me")
         assert resp.status_code == 200
         assert resp.json() == {
-            "id": "user-111",
+            "id": FAKE_USER_ID,
             "name": "Alice",
             "avatar_url": "https://example.com/alice.png",
         }
@@ -86,6 +88,39 @@ class TestJoinHousehold:
         mock_db.get_household_by_code.return_value = None
         resp = client.post("/api/households/join", json={"invite_code": "bad"})
         assert resp.status_code == 404
+
+
+class TestGetHouseholdMembers:
+    def test_returns_members(self, client, mock_db):
+        mock_db.get_household_members.return_value = [
+            {"id": FAKE_USER_ID, "display_name": "Alice", "avatar_url": None},
+            {"id": FAKE_OTHER_USER_ID, "display_name": "Bob", "avatar_url": "https://example.com/bob.png"},
+        ]
+        resp = client.get("/api/household/members")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["me"]["id"] == FAKE_USER_ID
+        assert body["me"]["name"] == "Alice"
+        assert len(body["others"]) == 1
+        assert body["others"][0]["name"] == "Bob"
+
+    def test_returns_empty_others_for_solo_household(self, client, mock_db):
+        mock_db.get_household_members.return_value = [
+            {"id": FAKE_USER_ID, "display_name": "Alice", "avatar_url": None},
+        ]
+        resp = client.get("/api/household/members")
+        assert resp.status_code == 200
+        assert resp.json()["others"] == []
+
+    def test_returns_404_when_no_household(self, client, mock_db):
+        mock_db.get_household_members.return_value = []
+        resp = client.get("/api/household/members")
+        assert resp.status_code == 404
+
+    def test_returns_500_on_db_error(self, client, mock_db):
+        mock_db.get_household_members.side_effect = RuntimeError("boom")
+        resp = client.get("/api/household/members")
+        assert resp.status_code == 500
 
 
 class TestGetMyHousehold:

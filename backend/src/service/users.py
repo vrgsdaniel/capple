@@ -2,6 +2,7 @@ from typing import Dict
 
 from src.errors import ConflictException, NotFoundException
 from src.repository.repository import Repository
+from src.utils.logger import logger as log
 
 
 class UserService:
@@ -39,6 +40,7 @@ class UserService:
 
         me_raw = next((m for m in members if m["id"] == user_id), None)
         if not me_raw:
+            log.warning("No household found for user %s", user_id)
             raise NotFoundException("You must belong to a household.")
 
         def to_member(m: dict) -> dict:

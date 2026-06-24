@@ -6,7 +6,8 @@ from src.repository.repository import Repository
 from src.errors import NotFoundException
 from src.service.users import UserService
 
-FAKE_USER_ID = "user-111"
+FAKE_USER_ID = "00000000-0000-0000-0000-000000000111"
+FAKE_OTHER_USER_ID = "00000000-0000-0000-0000-000000000222"
 FAKE_HOUSEHOLD_ID = "00000000-0000-0000-0000-000000000001"
 FAKE_HOUSEHOLD = {
     "id": FAKE_HOUSEHOLD_ID,
@@ -70,6 +71,30 @@ class TestJoinHousehold:
         mock_db.get_household_by_code.return_value = None
         with pytest.raises(NotFoundException):
             await user_service.join_household(FAKE_USER_ID, "bad-code")
+
+
+class TestGetHouseholdMembers:
+    async def test_returns_me_and_others(self, user_service, mock_db):
+        mock_db.get_household_members.return_value = [
+            {"id": FAKE_USER_ID, "display_name": "Alice", "avatar_url": None},
+            {"id": FAKE_OTHER_USER_ID, "display_name": "Bob", "avatar_url": "https://example.com/bob.png"},
+        ]
+        result = await user_service.get_household_members(FAKE_USER_ID)
+        assert result["me"] == {"id": FAKE_USER_ID, "name": "Alice", "avatar_url": None}
+        assert result["others"] == [{"id": FAKE_OTHER_USER_ID, "name": "Bob", "avatar_url": "https://example.com/bob.png"}]
+        mock_db.get_household_members.assert_called_once_with()
+
+    async def test_others_empty_for_solo_household(self, user_service, mock_db):
+        mock_db.get_household_members.return_value = [
+            {"id": FAKE_USER_ID, "display_name": "Alice", "avatar_url": None},
+        ]
+        result = await user_service.get_household_members(FAKE_USER_ID)
+        assert result["others"] == []
+
+    async def test_raises_not_found_when_user_not_in_members(self, user_service, mock_db):
+        mock_db.get_household_members.return_value = []
+        with pytest.raises(NotFoundException):
+            await user_service.get_household_members(FAKE_USER_ID)
 
 
 class TestGetUserHousehold:

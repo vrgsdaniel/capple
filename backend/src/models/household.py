@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateHouseholdRequest(BaseModel):
@@ -19,11 +19,15 @@ class UserHouseholdResponse(BaseModel):
 
 
 class HouseholdMember(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     id: UUID
     name: str
     avatar_url: str | None
 
 
 class HouseholdMembersResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     me: HouseholdMember
     others: list[HouseholdMember]
