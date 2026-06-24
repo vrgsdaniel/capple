@@ -1,7 +1,7 @@
 from typing import Dict
 
-from src.repository.repository import Repository
 from src.errors import ConflictException, NotFoundException
+from src.repository.repository import Repository
 
 
 class UserService:
@@ -33,6 +33,21 @@ class UserService:
             raise NotFoundException("Invalid invite code")
         await self.db.add_member_to_household(household["id"], user_id)
         return {"id": household["id"], "name": household["name"]}
+
+    async def get_household_members(self, user_id: str) -> Dict:
+        members = await self.db.get_household_members(user_id)
+
+        me_raw = next((m for m in members if m["id"] == user_id), None)
+        if not me_raw:
+            raise NotFoundException("You must belong to a household.")
+
+        def to_member(m: dict) -> dict:
+            return {"id": m["id"], "name": m["display_name"], "avatar_url": m["avatar_url"]}
+
+        return {
+            "me": to_member(me_raw),
+            "others": [to_member(m) for m in members if m["id"] != user_id],
+        }
 
     async def get_user_household(self, user_id: str) -> Dict | None:
         result = await self.db.get_household_by_user(user_id)

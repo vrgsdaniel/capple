@@ -16,3 +16,14 @@ class UserHouseholdResponse(BaseModel):
     name: str
     invite_code: str
     role: str
+
+
+class HouseholdMember(BaseModel):
+    id: UUID
+    name: str
+    avatar_url: str | None
+
+
+class HouseholdMembersResponse(BaseModel):
+    me: HouseholdMember
+    others: list[HouseholdMember]
