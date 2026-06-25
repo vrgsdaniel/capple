@@ -60,7 +60,10 @@ class Repository:
 
     async def get_household_members(self, user_id: str) -> list[dict]:
         return await self.store("household_member_profiles").find(
-            Criteria().eq("id", user_id).order("created_at", ascending=True).select("id, display_name, avatar_url")
+            Criteria()
+            .eq("request_user_id", user_id)
+            .order("created_at", ascending=True)
+            .select("id, display_name, avatar_url")
         )
 
     # --- battery_logs ---
