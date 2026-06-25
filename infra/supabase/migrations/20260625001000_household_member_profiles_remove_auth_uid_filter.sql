@@ -9,9 +9,4 @@ as
     p.display_name,
     p.avatar_url
   from app.household_members hm
-  join app.profiles p on p.id = hm.user_id
-  where hm.household_id in (
-    select household_id
-    from app.household_members
-    where user_id = auth.uid()
-  );
+  join app.profiles p on p.id = hm.user_id;
