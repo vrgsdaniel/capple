@@ -1,13 +1,22 @@
 import { useState } from 'react'
 import { Check, Trash2, Pencil } from 'lucide-react'
 import type { Task } from '@/types/tasks'
+import type { HouseholdMembers } from '@/types/household'
 
 interface Props {
   task: Task
+  members: HouseholdMembers | null
   currentUserId: string
   onComplete: (id: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onEdit: (task: Task) => void
+}
+
+function resolveAssigneeName(task: Task, members: HouseholdMembers | null, currentUserId: string): string {
+  if (task.assignee_type !== 'specific') return ''
+  if (task.assignee_id === currentUserId) return 'Me'
+  const match = members?.others.find(m => m.id === task.assignee_id)
+  return match?.name ?? 'Someone'
 }
 
 function dueDateLabel(dateStr: string): { text: string; overdue: boolean } {
@@ -39,7 +48,7 @@ const FREQUENCY_LABEL: Record<string, string> = {
   monthly: 'Monthly',
 }
 
-export default function TaskItem({ task, currentUserId, onComplete, onDelete, onEdit }: Props) {
+export default function TaskItem({ task, members, currentUserId, onComplete, onDelete, onEdit }: Props) {
   const [leaving, setLeaving] = useState(false)
   const [checked, setChecked] = useState(false)
 
@@ -51,6 +60,7 @@ export default function TaskItem({ task, currentUserId, onComplete, onDelete, on
   }
 
   const dueInfo = task.due_date ? dueDateLabel(task.due_date) : null
+  const assigneeName = resolveAssigneeName(task, members, currentUserId)
 
   return (
     <div
@@ -89,7 +99,7 @@ export default function TaskItem({ task, currentUserId, onComplete, onDelete, on
           {/* assignee */}
           {task.assignee_type === 'all' && <Chip>🏠 Everyone</Chip>}
           {task.assignee_type === 'specific' && (
-            <Chip>{task.assignee_id === currentUserId ? 'Me' : 'Someone'}</Chip>
+            <Chip>{assigneeName}</Chip>
           )}
           {/* frequency */}
           {task.frequency && (

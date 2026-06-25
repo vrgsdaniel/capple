@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Plus, ClipboardList, Users } from 'lucide-react'
 import { useTasks } from '@/hooks/useTasks'
 import { useTasksRealtime } from '@/hooks/useTasksRealtime'
+import { useHouseholdMembers } from '@/hooks/useHouseholdMembers'
 import TaskItem from './TaskItem'
 import TaskHistorySection from './TaskHistorySection'
 import TaskForm from './TaskForm'
@@ -15,6 +16,7 @@ interface Props {
 
 export default function TasksTab({ householdId, userId }: Props) {
   const { list, loading, error, refetch, createTask, updateTask, completeTask, deleteTask } = useTasks()
+  const { members } = useHouseholdMembers()
   const [editingTask, setEditingTask] = useState<Task | null>(null)
   const [showForm, setShowForm] = useState(false)
 
@@ -80,6 +82,7 @@ export default function TasksTab({ householdId, userId }: Props) {
                 <TaskItem
                   key={task.id}
                   task={task}
+                  members={members}
                   currentUserId={userId}
                   onComplete={completeTask}
                   onDelete={deleteTask}
@@ -89,13 +92,19 @@ export default function TasksTab({ householdId, userId }: Props) {
             </div>
           )}
 
-          <TaskHistorySection tasks={list.history} total={list.history_total} />
+          <TaskHistorySection
+            tasks={list.history}
+            total={list.history_total}
+            members={members}
+            currentUserId={userId}
+          />
         </>
       )}
 
       {showForm && (
         <TaskForm
           task={editingTask}
+          members={members}
           currentUserId={userId}
           onSave={handleSave}
           onClose={() => setShowForm(false)}

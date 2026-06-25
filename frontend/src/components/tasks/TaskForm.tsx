@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Task, CreateTaskPayload, UpdateTaskPayload, AssigneeType, Frequency } from '@/types/tasks'
+import type { HouseholdMembers } from '@/types/household'
 
 interface Props {
   task?: Task | null
+  members: HouseholdMembers | null
   currentUserId: string
   onSave: (payload: CreateTaskPayload | UpdateTaskPayload) => Promise<void>
   onClose: () => void
@@ -15,14 +17,17 @@ const FREQUENCIES: { value: Frequency; label: string }[] = [
   { value: 'monthly', label: 'Monthly' },
 ]
 
-export default function TaskForm({ task, currentUserId, onSave, onClose }: Props) {
+export default function TaskForm({ task, members, currentUserId, onSave, onClose }: Props) {
   const isEdit = !!task
 
   const [name, setName] = useState(task?.name ?? '')
   const [assigneeType, setAssigneeType] = useState<AssigneeType>(
-    (task as (Task & { _assignToMe?: boolean }) | null)?._assignToMe
-      ? 'specific'
-      : (task?.assignee_type ?? 'none')
+    task?.assignee_type ?? 'none'
+  )
+  const [specificAssigneeId, setSpecificAssigneeId] = useState<string>(
+    task?.assignee_type === 'specific' && task.assignee_id
+      ? task.assignee_id
+      : currentUserId
   )
   const [dueDate, setDueDate] = useState(task?.due_date ?? '')
   const [frequency, setFrequency] = useState<Frequency | ''>(task?.frequency ?? '')
@@ -38,7 +43,7 @@ export default function TaskForm({ task, currentUserId, onSave, onClose }: Props
       const payload: CreateTaskPayload = {
         name: name.trim(),
         assignee_type: assigneeType,
-        assignee_id: assigneeType === 'specific' ? currentUserId : null,
+        assignee_id: assigneeType === 'specific' ? specificAssigneeId : null,
         due_date: dueDate || null,
         frequency: (frequency as Frequency) || null,
       }
@@ -102,22 +107,92 @@ export default function TaskForm({ task, currentUserId, onSave, onClose }: Props
               Assigned to
             </label>
             <div className="flex gap-2">
-              {(['none', 'specific', 'all'] as AssigneeType[]).map(type => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setAssigneeType(type)}
-                  className="flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all"
-                  style={{
-                    borderColor: assigneeType === type ? 'var(--m-accent)' : 'var(--m-border)',
-                    background: assigneeType === type ? 'var(--m-accent)' : 'var(--m-bg-2)',
-                    color: assigneeType === type ? 'var(--m-accent-fg)' : 'var(--m-fg-2)',
-                  }}
-                >
-                  {type === 'none' ? 'No one' : type === 'specific' ? 'Me' : '🏠 Everyone'}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => setAssigneeType('none')}
+                className="flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all"
+                style={{
+                  borderColor: assigneeType === 'none' ? 'var(--m-accent)' : 'var(--m-border)',
+                  background: assigneeType === 'none' ? 'var(--m-accent)' : 'var(--m-bg-2)',
+                  color: assigneeType === 'none' ? 'var(--m-accent-fg)' : 'var(--m-fg-2)',
+                }}
+              >
+                No one
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAssigneeType('specific')
+                  setSpecificAssigneeId(currentUserId)
+                }}
+                className="flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all"
+                style={{
+                  borderColor:
+                    assigneeType === 'specific' && specificAssigneeId === currentUserId
+                      ? 'var(--m-accent)'
+                      : 'var(--m-border)',
+                  background:
+                    assigneeType === 'specific' && specificAssigneeId === currentUserId
+                      ? 'var(--m-accent)'
+                      : 'var(--m-bg-2)',
+                  color:
+                    assigneeType === 'specific' && specificAssigneeId === currentUserId
+                      ? 'var(--m-accent-fg)'
+                      : 'var(--m-fg-2)',
+                }}
+              >
+                Me
+              </button>
+              <button
+                type="button"
+                onClick={() => setAssigneeType('all')}
+                className="flex-1 rounded-lg border py-1.5 text-xs font-medium transition-all"
+                style={{
+                  borderColor: assigneeType === 'all' ? 'var(--m-accent)' : 'var(--m-border)',
+                  background: assigneeType === 'all' ? 'var(--m-accent)' : 'var(--m-bg-2)',
+                  color: assigneeType === 'all' ? 'var(--m-accent-fg)' : 'var(--m-fg-2)',
+                }}
+              >
+                🏠 Everyone
+              </button>
             </div>
+
+            {members && members.others.length > 0 && (
+              <div className="mt-2">
+                <p className="mb-1 text-xs font-medium" style={{ color: 'var(--m-fg-3)' }}>
+                  Pick member
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {members.others.map(member => (
+                    <button
+                      key={member.id}
+                      type="button"
+                      onClick={() => {
+                        setAssigneeType('specific')
+                        setSpecificAssigneeId(member.id)
+                      }}
+                      className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-all"
+                      style={{
+                        borderColor:
+                          assigneeType === 'specific' && specificAssigneeId === member.id
+                            ? 'var(--m-accent)'
+                            : 'var(--m-border)',
+                        background:
+                          assigneeType === 'specific' && specificAssigneeId === member.id
+                            ? 'var(--m-accent)'
+                            : 'var(--m-bg-2)',
+                        color:
+                          assigneeType === 'specific' && specificAssigneeId === member.id
+                            ? 'var(--m-accent-fg)'
+                            : 'var(--m-fg-2)',
+                      }}
+                    >
+                      {member.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* due date */}

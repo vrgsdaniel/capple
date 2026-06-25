@@ -1,10 +1,20 @@
 import { useState } from 'react'
 import { ChevronDown, History } from 'lucide-react'
 import type { Task } from '@/types/tasks'
+import type { HouseholdMembers } from '@/types/household'
 
 interface Props {
   tasks: Task[]
   total: number
+  members: HouseholdMembers | null
+  currentUserId: string
+}
+
+function resolveAssigneeName(task: Task, members: HouseholdMembers | null, currentUserId: string): string {
+  if (task.assignee_type !== 'specific') return ''
+  if (task.assignee_id === currentUserId) return 'Me'
+  const match = members?.others.find(m => m.id === task.assignee_id)
+  return match?.name ?? 'Someone'
 }
 
 function completedLabel(dateStr: string): string {
@@ -26,7 +36,7 @@ function Chip({ children }: { children: React.ReactNode }) {
   )
 }
 
-export default function TaskHistorySection({ tasks, total }: Props) {
+export default function TaskHistorySection({ tasks, total, members, currentUserId }: Props) {
   const [open, setOpen] = useState(false)
 
   if (total === 0) return null
@@ -52,27 +62,30 @@ export default function TaskHistorySection({ tasks, total }: Props) {
 
       {open && (
         <div className="mt-3 space-y-1">
-          {tasks.map(task => (
-            <div
-              key={task.id}
-              className="flex items-center gap-3 rounded-lg px-1 py-2"
-            >
-              <div className="flex flex-1 flex-col min-w-0">
-                <span className="truncate text-sm line-through" style={{ color: 'var(--m-fg-3)' }}>
-                  {task.name}
-                </span>
-                <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                  {task.assignee_type === 'all' && <Chip>🏠 Everyone</Chip>}
-                  {task.assignee_type === 'specific' && <Chip>Me</Chip>}
+          {tasks.map(task => {
+            const assigneeName = resolveAssigneeName(task, members, currentUserId)
+            return (
+              <div
+                key={task.id}
+                className="flex items-center gap-3 rounded-lg px-1 py-2"
+              >
+                <div className="flex flex-1 flex-col min-w-0">
+                  <span className="truncate text-sm line-through" style={{ color: 'var(--m-fg-3)' }}>
+                    {task.name}
+                  </span>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    {task.assignee_type === 'all' && <Chip>🏠 Everyone</Chip>}
+                    {task.assignee_type === 'specific' && <Chip>{assigneeName}</Chip>}
+                  </div>
                 </div>
+                {task.completed_at && (
+                  <span className="shrink-0 text-xs" style={{ color: 'var(--m-fg-4)' }}>
+                    {completedLabel(task.completed_at)}
+                  </span>
+                )}
               </div>
-              {task.completed_at && (
-                <span className="shrink-0 text-xs" style={{ color: 'var(--m-fg-4)' }}>
-                  {completedLabel(task.completed_at)}
-                </span>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

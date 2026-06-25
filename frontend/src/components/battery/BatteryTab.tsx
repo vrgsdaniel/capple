@@ -4,6 +4,7 @@ import BatteryLogger from '@/components/battery/BatteryLogger'
 import BatteryChart from '@/components/battery/BatteryChart'
 import { Button } from '@/components/ui/button'
 import { useBatteryRealtime } from '@/hooks/useBatteryRealtime'
+import { useHouseholdMembers } from '@/hooks/useHouseholdMembers'
 
 interface Props {
   userId: string
@@ -16,6 +17,7 @@ type Range = '7d' | '30d' | '12m'
 export default function BatteryTab({ userId, userName, householdId }: Props) {
   const [range, setRange] = useState<Range>('30d')
   const { logs, loading, refetch } = useBatteryLogs(range)
+  const { members } = useHouseholdMembers()
   useBatteryRealtime(householdId, refetch)
   const { you, partner } = toDailyAverages(logs, userId)
 
@@ -55,12 +57,12 @@ export default function BatteryTab({ userId, userName, householdId }: Props) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <BatteryChart
             data={you}
-            label={userName}
+            label={members?.me.name ?? userName}
             color="#c8f076"
           />
           <BatteryChart
             data={partner}
-            label="Partner"
+            label={members?.others[0]?.name ?? 'Partner'}
             color="#76c8f0"
             empty={partner.length === 0}
           />
