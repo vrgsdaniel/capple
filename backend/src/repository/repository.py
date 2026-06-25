@@ -58,6 +58,11 @@ class Repository:
             {"household_id": household_id, "user_id": user_id, "role": role}
         )
 
+    async def get_household_members(self, user_id: str) -> list[dict]:
+        return await self.store("household_member_profiles").find(
+            Criteria().eq("id", user_id).order("created_at", ascending=True).select("id, display_name, avatar_url")
+        )
+
     # --- battery_logs ---
 
     async def create_battery_log(
@@ -300,9 +305,7 @@ class Repository:
         return {row["id"]: row["name"] for row in rows}
 
     async def delete_bought_grocery_items(self, household_id: str) -> None:
-        await self.store("grocery_items").delete_where(
-            Criteria().eq("household_id", household_id).eq("bought", True)
-        )
+        await self.store("grocery_items").delete_where(Criteria().eq("household_id", household_id).eq("bought", True))
 
     # --- tasks ---
 

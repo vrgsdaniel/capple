@@ -6,7 +6,7 @@ from src.utils.general import http_error_response
 from src.utils.logger import logger as log
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from src.repository.repository import Repository, get_repository
-from src.models.household import CreateHouseholdRequest, JoinHouseholdRequest, UserHouseholdResponse
+from src.models.household import CreateHouseholdRequest, HouseholdMembersResponse, JoinHouseholdRequest, UserHouseholdResponse
 from src.service.users import UserService
 from typing import Annotated, Dict
 
@@ -111,6 +111,25 @@ async def join_household(
         log.error("Failed to join household.")
         raise http_error_response(
             error_message="Failed to join household.",
+            error_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@router.get("/api/household/members", status_code=status.HTTP_200_OK, response_model=HouseholdMembersResponse)
+async def get_household_members(
+    current_user: Annotated[Dict, Depends(get_current_user)],
+    user_service: Annotated[UserService, Depends(get_user_service)],
+) -> HouseholdMembersResponse:
+    log.info("Fetching household members...")
+    try:
+        result = await user_service.get_household_members(current_user.id)
+        return HouseholdMembersResponse(**result)
+    except NotFoundException as e:
+        raise http_error_response(error_message=e.message, error_code=status.HTTP_404_NOT_FOUND)
+    except Exception:
+        log.error("Failed to fetch household members.")
+        raise http_error_response(
+            error_message="Failed to fetch household members.",
             error_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
 
