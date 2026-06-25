@@ -6,7 +6,7 @@ as
     member.household_id,
     member.user_id as id,
     member.role,
-    member.created_at,
+    member.joined_at as created_at,
     p.display_name,
     p.avatar_url
   from app.household_members requester
