@@ -82,7 +82,7 @@ class TestGetHouseholdMembers:
         result = await user_service.get_household_members(FAKE_USER_ID)
         assert result["me"] == {"id": FAKE_USER_ID, "name": "Alice", "avatar_url": None}
         assert result["others"] == [{"id": FAKE_OTHER_USER_ID, "name": "Bob", "avatar_url": "https://example.com/bob.png"}]
-        mock_db.get_household_members.assert_called_once_with()
+        mock_db.get_household_members.assert_called_once_with(FAKE_USER_ID)
 
     async def test_others_empty_for_solo_household(self, user_service, mock_db):
         mock_db.get_household_members.return_value = [
