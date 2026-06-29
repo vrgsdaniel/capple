@@ -163,6 +163,10 @@ class Repository:
             ]
         return filtered
 
+    async def bulk_insert_recipes(self, recipes: list[dict]) -> list[dict]:
+        """Insert multiple recipes in a single request."""
+        return await self.store("recipes").insert(recipes)
+
     # --- recipe user interactions ---
 
     async def get_recipe_interactions(self, recipe_id: str, user_id: str) -> dict:

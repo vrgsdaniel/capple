@@ -13,6 +13,7 @@
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/backend/.venv/bin/python",
             "envFile": "${workspaceFolder}/backend/.env",
+            "cwd": "${workspaceFolder}",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/backend",
             },

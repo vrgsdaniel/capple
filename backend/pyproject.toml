@@ -12,6 +12,7 @@ dependencies = [
     "langchain-openai>=1.2.1",
     "langgraph>=1.2.0",
     "loguru>=0.7.3",
+    "markdownify>=1.2.2",
     "opentelemetry-api>=1.41.1",
     "opentelemetry-exporter-otlp-proto-http>=1.41.1",
     "opentelemetry-instrumentation-fastapi>=0.62b1",
@@ -30,6 +31,7 @@ dev = [
     "extruct>=0.18.0",
     "pandas>=3.0.3",
     "pyright>=1.1.409",
+    "rapidfuzz>=3.14.5",
     "recipe-scrapers>=15.11.0",
 ]
 test = [
