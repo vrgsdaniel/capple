@@ -42,8 +42,8 @@ function makeDetail(overrides = {}) {
   }
 }
 
-function mockList(items = [makeListItem()]) {
-  mockedApi.get.mockResolvedValueOnce({ data: { items } })
+function mockList(items = [makeListItem()], total = items.length) {
+  mockedApi.get.mockResolvedValueOnce({ data: { items, total } })
 }
 
 describe('useRecipes', () => {
@@ -70,6 +70,31 @@ describe('useRecipes', () => {
     expect(r.saved).toBe(false)
     expect(r.cooked).toBe(false)
     expect(r.myRating).toBe(0)
+  })
+
+  it('loads recipes with page parameter', async () => {
+    mockList()
+    const { result } = renderHook(() => useRecipes(1))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(mockedApi.get).toHaveBeenCalledWith('/api/recipes', { params: { limit: 100, page: 1 } })
+  })
+
+  it('refetches when page changes', async () => {
+    mockList()
+    const { result, rerender } = renderHook(({ page }) => useRecipes(page), {
+      initialProps: { page: 1 },
+    })
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    expect(mockedApi.get).toHaveBeenCalledTimes(1)
+
+    mockList()
+    rerender({ page: 2 })
+
+    await waitFor(() => expect(mockedApi.get).toHaveBeenCalledTimes(2))
+    expect(mockedApi.get).toHaveBeenLastCalledWith('/api/recipes', { params: { limit: 100, page: 2 } })
   })
 
   it('maps liked/cooked/user_rating from list item', async () => {

@@ -107,19 +107,24 @@ function detailPatch(detail: ApiDetail): Partial<Recipe> {
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
-export function useRecipes() {
+export function useRecipes(page: number = 1) {
   const [recipes, setRecipes] = useState<Recipe[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const fetchedDetails = useRef(new Set<string>())
 
   useEffect(() => {
+    setLoading(true)
     api
-      .get<{ items: ApiListItem[] }>('/api/recipes', { params: { limit: 100 } })
-      .then(res => setRecipes(res.data.items.map(fromListItem)))
+      .get<{ items: ApiListItem[]; total: number }>('/api/recipes', { params: { limit: 100, page } })
+      .then(res => {
+        setRecipes(res.data.items.map(fromListItem))
+        setTotal(res.data.total)
+      })
       .catch(() => setError('Failed to load recipes'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [page])
 
   function updateRecipe(id: string, patch: Partial<Recipe>) {
     setRecipes(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)))
@@ -151,5 +156,5 @@ export function useRecipes() {
     updateRecipe(id, { myRating: res.data.user_rating ?? 0, rating: res.data.rating ?? 0 })
   }
 
-  return { recipes, loading, error, updateRecipe, ensureDetails, toggleLike, toggleCooked, rateRecipe }
+  return { recipes, total, loading, error, updateRecipe, ensureDetails, toggleLike, toggleCooked, rateRecipe }
 }
