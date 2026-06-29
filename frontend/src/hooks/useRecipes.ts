@@ -115,6 +115,7 @@ export function useRecipes(page: number = 1) {
   const fetchedDetails = useRef(new Set<string>())
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     api
       .get<{ items: ApiListItem[]; total: number }>('/api/recipes', { params: { limit: 100, page } })
