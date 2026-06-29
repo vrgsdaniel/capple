@@ -62,7 +62,11 @@ class Store:
     async def get_by_id(self, entity_id: str) -> dict | None:
         return await self.find_one(Criteria().eq("id", entity_id))
 
-    async def insert(self, data: dict) -> dict:
+    @overload
+    async def insert(self, data: dict) -> dict: ...
+    @overload
+    async def insert(self, data: list[dict]) -> list[dict]: ...
+    async def insert(self, data: dict | list[dict]) -> dict | list[dict]:
         try:
             result = await self._table().insert(data).execute()
         except APIError as e:
@@ -71,6 +75,8 @@ class Store:
             if e.code == "23503":
                 raise NotFoundException(f"Referenced entity not found for {self._table_name}") from e
             raise
+        if isinstance(data, list):
+            return result.data
         return result.data[0]
 
     async def upsert(self, data: dict, on_conflict: str) -> dict:

@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Search, X, ArrowDownUp, ChevronDown, Check } from 'lucide-react'
+import { Search, X, ArrowDownUp, ChevronDown, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import RecipeCard from './RecipeCard'
 import RecipeSheet from './RecipeSheet'
 import { useRecipes } from '@/hooks/useRecipes'
@@ -63,7 +63,8 @@ function SortDropdown({ value, onChange }: SortDropdownProps) {
 }
 
 export default function MealsTab() {
-  const { recipes, loading, error, ensureDetails, toggleLike, toggleCooked, rateRecipe } = useRecipes()
+  const [page, setPage] = useState(1)
+  const { recipes, total, loading, error, ensureDetails, toggleLike, toggleCooked, rateRecipe } = useRecipes(page)
   const { addFromRecipe } = useGroceryList()
 
   const [search, setSearch] = useState('')
@@ -240,7 +241,7 @@ export default function MealsTab() {
           {hasFilters || search ? 'Results' : 'All recipes'}
         </span>
         <span className="meals-results-count">
-          {filtered.length} of {recipes.length}
+          {filtered.length} of {total}
         </span>
       </div>
 
@@ -260,6 +261,35 @@ export default function MealsTab() {
               onToggleLike={toggleLike}
             />
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {total > recipes.length && (
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px', marginBottom: '20px' }}>
+          <button
+            type="button"
+            className="meals-btn"
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            style={{ opacity: page === 1 ? 0.5 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}
+          >
+            <ChevronLeft size={16} strokeWidth={1.75} />
+            Previous
+          </button>
+          <span style={{ alignSelf: 'center', color: 'var(--m-fg-3)', fontSize: '14px' }}>
+            Page {page}
+          </span>
+          <button
+            type="button"
+            className="meals-btn"
+            onClick={() => setPage(p => p + 1)}
+            disabled={recipes.length < 100}
+            style={{ opacity: recipes.length < 100 ? 0.5 : 1, cursor: recipes.length < 100 ? 'not-allowed' : 'pointer' }}
+          >
+            Next
+            <ChevronRight size={16} strokeWidth={1.75} />
+          </button>
         </div>
       )}
 
