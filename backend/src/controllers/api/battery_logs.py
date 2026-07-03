@@ -4,6 +4,7 @@ from typing import Annotated, Dict
 from fastapi import APIRouter, Depends, Query, status
 
 from src.controllers.api.users import get_current_user
+from src.models.user import CurrentUser
 from src.repository.repository import Repository, get_repository
 from src.errors import NotFoundException
 from src.models.battery_log import BatteryLogResponse, CreateBatteryLogRequest, UpdateBatteryLogRequest
@@ -21,7 +22,7 @@ def get_battery_log_service(repo: Annotated[Repository, Depends(get_repository)]
 @router.post("/api/battery-logs", status_code=status.HTTP_201_CREATED)
 async def create_battery_log(
     body: CreateBatteryLogRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[BatteryLogService, Depends(get_battery_log_service)],
 ) -> BatteryLogResponse:
     log.info(f"Creating battery log for user {current_user.id}")
@@ -40,7 +41,7 @@ async def create_battery_log(
 async def get_battery_logs(
     start: Annotated[datetime, Query()],
     end: Annotated[datetime, Query()],
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[BatteryLogService, Depends(get_battery_log_service)],
 ) -> list[BatteryLogResponse]:
     log.info(f"Fetching battery logs for user {current_user.id} from {start} to {end}")
@@ -54,7 +55,7 @@ async def get_battery_logs(
 async def update_battery_log(
     log_id: str,
     body: UpdateBatteryLogRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[BatteryLogService, Depends(get_battery_log_service)],
 ) -> BatteryLogResponse:
     log.info(f"Updating battery log {log_id} for user {current_user.id}")
@@ -70,7 +71,7 @@ async def update_battery_log(
 @router.delete("/api/battery-logs/{log_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_battery_log(
     log_id: str,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[BatteryLogService, Depends(get_battery_log_service)],
 ) -> None:
     log.info(f"Deleting battery log {log_id} for user {current_user.id}")

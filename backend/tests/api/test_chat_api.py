@@ -1,3 +1,4 @@
+from src.models.user import CurrentUser
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from json import JSONDecodeError
@@ -9,7 +10,7 @@ from fastapi.testclient import TestClient
 from src.controllers.api.chat import get_chatbot, get_current_user, get_repository, router
 from src.repository.repository import Repository
 
-FAKE_USER = SimpleNamespace(id="user-111")
+FAKE_USER = CurrentUser(id="user-111")
 FAKE_HOUSEHOLD = {"id": "hh-001", "name": "Home", "invite_code": "abc123", "role": "owner"}
 
 

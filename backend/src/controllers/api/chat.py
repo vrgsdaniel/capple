@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 
 from src.controllers.api.users import get_current_user
+from src.models.user import CurrentUser
 from src.repository.repository import Repository, get_repository
 from src.models.chat import ChatRequest
 from src.service.chat import ChatService
@@ -26,7 +27,7 @@ def get_chat_graph(request: Request):
 
 
 async def get_chat_service(
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     repo: Annotated[Repository, Depends(get_repository)],
     chatbot: Annotated[Chatbot, Depends(get_chatbot)],
     graph=Depends(get_chat_graph),

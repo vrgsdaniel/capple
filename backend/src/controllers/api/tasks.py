@@ -1,8 +1,9 @@
-from typing import Annotated, Dict
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
 from src.controllers.api.users import get_current_user
+from src.models.user import CurrentUser
 from src.repository.repository import Repository, get_repository
 from src.errors import NotFoundException
 from src.models.task import CreateTaskRequest, TaskListResponse, TaskResponse, UpdateTaskRequest
@@ -19,14 +20,16 @@ def get_task_service(repo: Annotated[Repository, Depends(get_repository)]) -> Ta
 
 @router.get("/api/tasks", status_code=status.HTTP_200_OK)
 async def list_tasks(
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[TaskService, Depends(get_task_service)],
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     include_history: bool = Query(True),
 ) -> TaskListResponse:
     try:
-        result = await service.list_tasks(current_user.id, page=page, page_size=page_size, include_history=include_history)
+        result = await service.list_tasks(
+            current_user.id, page=page, page_size=page_size, include_history=include_history
+        )
         return TaskListResponse(**result)
     except NotFoundException as e:
         log.warning(f"list_tasks failed for user {current_user.id}: {e.message}")
@@ -36,7 +39,7 @@ async def list_tasks(
 @router.post("/api/tasks", status_code=status.HTTP_201_CREATED)
 async def create_task(
     body: CreateTaskRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[TaskService, Depends(get_task_service)],
 ) -> TaskResponse:
     try:
@@ -63,7 +66,7 @@ async def create_task(
 async def update_task(
     task_id: str,
     body: UpdateTaskRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[TaskService, Depends(get_task_service)],
 ) -> TaskResponse:
     try:
@@ -87,7 +90,7 @@ async def update_task(
 @router.post("/api/tasks/{task_id}/complete", status_code=status.HTTP_200_OK)
 async def complete_task(
     task_id: str,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[TaskService, Depends(get_task_service)],
 ) -> TaskResponse:
     try:
@@ -106,7 +109,7 @@ async def complete_task(
 @router.delete("/api/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     task_id: str,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[TaskService, Depends(get_task_service)],
 ) -> None:
     log.info(f"Deleting task {task_id} requested by user {current_user.id}")

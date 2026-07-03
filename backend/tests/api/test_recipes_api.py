@@ -1,4 +1,4 @@
-from types import SimpleNamespace
+from src.models.user import CurrentUser
 from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import FastAPI
@@ -10,7 +10,7 @@ from src.repository.repository import Repository
 from src.errors import NotFoundException
 from src.service.recipes import RecipeService
 
-FAKE_USER = SimpleNamespace(id="user-111")
+FAKE_USER = CurrentUser(id="user-111")
 
 
 @pytest.fixture
