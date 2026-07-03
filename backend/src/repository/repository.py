@@ -66,6 +66,23 @@ class Repository:
             .select("id, display_name, avatar_url")
         )
 
+    async def remove_user_from_household(self, user_id: str, household_id: str) -> bool:
+        result = await self.store("household_members").delete_where(
+            Criteria().eq("user_id", user_id).eq("household_id", household_id)
+        )
+        return len(result) > 0
+
+    async def delete_household_by_owner(self, household_id: str, user_id: str) -> bool:
+        """Delete a household only if user_id matches created_by. Returns True if deleted."""
+        result = await self.store("households").delete_where(
+            Criteria().eq("id", household_id).eq("created_by", user_id)
+        )
+        return len(result) > 0
+
+    async def delete_user_account(self, user_id: str) -> None:
+        # Intentional: auth admin has no store/Criteria equivalent; direct client call is required.
+        await self.client.auth.admin.delete_user(user_id)
+
     # --- battery_logs ---
 
     async def create_battery_log(

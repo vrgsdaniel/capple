@@ -2,6 +2,7 @@ from src.errors import InternalServerException, NotFoundException
 from src.utils.logger import logger as log
 from supabase import AsyncClient
 from supabase_auth.errors import AuthApiError
+from supabase_auth.types import User
 
 
 class Auth:
@@ -9,7 +10,7 @@ class Auth:
         self.client = client
         self.token = token
 
-    async def get_current_user(self):
+    async def get_current_user(self) -> User:
         try:
             response = await self.client.auth.get_user(self.token)
             if not response.user:

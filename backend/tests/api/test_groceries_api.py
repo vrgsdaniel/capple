@@ -1,4 +1,4 @@
-from types import SimpleNamespace
+from src.models.user import CurrentUser
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,7 +11,7 @@ from src.errors import NotFoundException
 from src.service.grocery_service import GroceryService
 
 FAKE_USER_ID = "00000000-0000-0000-0000-000000000001"
-FAKE_USER = SimpleNamespace(id=FAKE_USER_ID)
+FAKE_USER = CurrentUser(id=FAKE_USER_ID)
 FAKE_HOUSEHOLD_ID = "00000000-0000-0000-0000-000000000002"
 FAKE_ITEM_ID = "00000000-0000-0000-0000-000000000003"
 FAKE_RECIPE_ID = "00000000-0000-0000-0000-000000000004"

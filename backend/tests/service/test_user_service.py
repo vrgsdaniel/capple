@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.repository.repository import Repository
-from src.errors import NotFoundException
+from src.errors import ConflictException, ForbiddenException, NotFoundException
 from src.service.users import UserService
 
 FAKE_USER_ID = "00000000-0000-0000-0000-000000000111"
@@ -54,6 +54,17 @@ class TestCreateHousehold:
         mock_db.create_household.assert_called_once_with("Test Home", created_by=FAKE_USER_ID)
         mock_db.add_member_to_household.assert_called_once_with(FAKE_HOUSEHOLD_ID, FAKE_USER_ID, role="owner")
 
+    async def test_rolls_back_household_when_member_insert_fails(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
+        mock_db.create_household.return_value = FAKE_HOUSEHOLD
+        mock_db.add_member_to_household.side_effect = RuntimeError("member insert failed")
+        mock_db.delete_household_by_owner.return_value = True
+
+        with pytest.raises(RuntimeError):
+            await user_service.create_household(FAKE_USER_ID, "Test Home")
+
+        mock_db.delete_household_by_owner.assert_called_once_with(FAKE_HOUSEHOLD_ID, FAKE_USER_ID)
+
 
 class TestJoinHousehold:
     async def test_joins_existing_household(self, user_service, mock_db):
@@ -81,7 +92,9 @@ class TestGetHouseholdMembers:
         ]
         result = await user_service.get_household_members(FAKE_USER_ID)
         assert result["me"] == {"id": FAKE_USER_ID, "name": "Alice", "avatar_url": None}
-        assert result["others"] == [{"id": FAKE_OTHER_USER_ID, "name": "Bob", "avatar_url": "https://example.com/bob.png"}]
+        assert result["others"] == [
+            {"id": FAKE_OTHER_USER_ID, "name": "Bob", "avatar_url": "https://example.com/bob.png"}
+        ]
         mock_db.get_household_members.assert_called_once_with(FAKE_USER_ID)
 
     async def test_others_empty_for_solo_household(self, user_service, mock_db):
@@ -116,3 +129,100 @@ class TestGetUserHousehold:
     async def test_returns_none_when_not_member(self, user_service, mock_db):
         mock_db.get_household_by_user.return_value = None
         assert await user_service.get_user_household(FAKE_USER_ID) is None
+
+
+class TestLeaveHousehold:
+    async def test_member_can_leave(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "member",
+        }
+        mock_db.remove_user_from_household.return_value = True
+        await user_service.leave_household(FAKE_USER_ID)
+        mock_db.remove_user_from_household.assert_called_once_with(FAKE_USER_ID, FAKE_HOUSEHOLD_ID)
+
+    async def test_raises_not_found_when_not_in_household(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
+        with pytest.raises(NotFoundException):
+            await user_service.leave_household(FAKE_USER_ID)
+
+    async def test_raises_forbidden_when_owner_tries_to_leave(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "owner",
+        }
+        with pytest.raises(ForbiddenException):
+            await user_service.leave_household(FAKE_USER_ID)
+
+    async def test_raises_not_found_when_membership_already_gone(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "member",
+        }
+        mock_db.remove_user_from_household.return_value = False
+        with pytest.raises(NotFoundException):
+            await user_service.leave_household(FAKE_USER_ID)
+
+
+class TestDeleteHousehold:
+    async def test_owner_can_delete(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "owner",
+        }
+        mock_db.delete_household_by_owner.return_value = True
+        await user_service.delete_household(FAKE_USER_ID)
+        mock_db.delete_household_by_owner.assert_called_once_with(FAKE_HOUSEHOLD_ID, FAKE_USER_ID)
+
+    async def test_raises_not_found_when_not_in_household(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
+        with pytest.raises(NotFoundException):
+            await user_service.delete_household(FAKE_USER_ID)
+
+    async def test_raises_forbidden_when_not_owner(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "member",
+        }
+        mock_db.delete_household_by_owner.return_value = False
+        with pytest.raises(ForbiddenException):
+            await user_service.delete_household(FAKE_USER_ID)
+
+
+class TestDeleteAccount:
+    async def test_member_can_delete_account(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "member",
+        }
+        mock_db.delete_user_account.return_value = None
+        await user_service.delete_account(FAKE_USER_ID)
+        mock_db.delete_user_account.assert_called_once_with(FAKE_USER_ID)
+
+    async def test_user_with_no_household_can_delete_account(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = None
+        mock_db.delete_user_account.return_value = None
+        await user_service.delete_account(FAKE_USER_ID)
+        mock_db.delete_user_account.assert_called_once_with(FAKE_USER_ID)
+
+    async def test_raises_conflict_when_user_is_owner(self, user_service, mock_db):
+        mock_db.get_household_by_user.return_value = {
+            "id": FAKE_HOUSEHOLD_ID,
+            "name": "Test Home",
+            "invite_code": "abc123",
+            "role": "owner",
+        }
+        with pytest.raises(ConflictException):
+            await user_service.delete_account(FAKE_USER_ID)

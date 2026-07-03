@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, status
 
 from src.controllers.api.users import get_current_user
+from src.models.user import CurrentUser
 from src.repository.repository import Repository, get_repository
 from src.errors import NotFoundException
 from src.models.recipes import RateRecipeRequest, RecipeDetailsResponse, RecipeListItemResponse, RecipeListResponse
@@ -66,7 +67,7 @@ async def _handle_recipe_interaction(
 @router.get("/api/recipes/{recipe_id}", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
 async def get_recipe_details(
     recipe_id: str,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
     log.info(f"Fetching recipe details for {recipe_id}")
@@ -87,7 +88,7 @@ async def get_recipe_details(
 
 @router.get("/api/recipes", status_code=status.HTTP_200_OK, response_model=RecipeListResponse)
 async def list_recipes(
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
     search: Annotated[str | None, Query()] = None,
     recipe_type: Annotated[str | None, Query()] = None,
@@ -124,7 +125,7 @@ async def list_recipes(
 @router.post("/api/recipes/{recipe_id}/like", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
 async def toggle_recipe_like(
     recipe_id: str,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
     return await _handle_recipe_interaction(
@@ -135,7 +136,7 @@ async def toggle_recipe_like(
 @router.post("/api/recipes/{recipe_id}/cooked", status_code=status.HTTP_200_OK, response_model=RecipeDetailsResponse)
 async def toggle_recipe_cooked(
     recipe_id: str,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
     return await _handle_recipe_interaction(
@@ -147,7 +148,7 @@ async def toggle_recipe_cooked(
 async def rate_recipe(
     recipe_id: str,
     body: RateRecipeRequest,
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
 ) -> RecipeDetailsResponse:
     return await _handle_recipe_interaction(

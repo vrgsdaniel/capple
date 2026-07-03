@@ -20,3 +20,11 @@ class InternalServerException(Exception):
     def __init__(self, message: str = "Internal server error"):
         self.message = message
         super().__init__(self.message)
+
+
+class ForbiddenException(Exception):
+    """Exception raised when an operation is not permitted for the current user."""
+
+    def __init__(self, message: str = "Forbidden"):
+        self.message = message
+        super().__init__(self.message)

@@ -1,4 +1,4 @@
-from types import SimpleNamespace
+from src.models.user import CurrentUser
 from unittest.mock import MagicMock
 
 import pytest
@@ -11,7 +11,7 @@ from src.errors import NotFoundException
 from src.service.task_service import TaskService
 
 FAKE_USER_ID = "00000000-0000-0000-0000-000000000001"
-FAKE_USER = SimpleNamespace(id=FAKE_USER_ID)
+FAKE_USER = CurrentUser(id=FAKE_USER_ID)
 FAKE_HOUSEHOLD_ID = "00000000-0000-0000-0000-000000000002"
 FAKE_TASK_ID = "00000000-0000-0000-0000-000000000003"
 FAKE_ASSIGNEE_ID = "00000000-0000-0000-0000-000000000004"
@@ -98,16 +98,25 @@ class TestCreateTask:
         assert resp.json()["name"] == "Vacuum living room"
 
     def test_returns_201_with_all_fields(self, client, mock_service):
-        task = {**FAKE_TASK, "assignee_type": "specific", "assignee_id": FAKE_ASSIGNEE_ID, "due_date": "2026-06-30", "frequency": "weekly"}
-        mock_service.create_task.return_value = task
-
-        resp = client.post("/api/tasks", json={
-            "name": "Vacuum",
+        task = {
+            **FAKE_TASK,
             "assignee_type": "specific",
             "assignee_id": FAKE_ASSIGNEE_ID,
             "due_date": "2026-06-30",
             "frequency": "weekly",
-        })
+        }
+        mock_service.create_task.return_value = task
+
+        resp = client.post(
+            "/api/tasks",
+            json={
+                "name": "Vacuum",
+                "assignee_type": "specific",
+                "assignee_id": FAKE_ASSIGNEE_ID,
+                "due_date": "2026-06-30",
+                "frequency": "weekly",
+            },
+        )
 
         assert resp.status_code == 201
 

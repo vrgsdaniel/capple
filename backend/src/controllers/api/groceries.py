@@ -1,8 +1,9 @@
-from typing import Annotated, Dict
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
 from src.controllers.api.users import get_current_user
+from src.models.user import CurrentUser
 from src.repository.repository import Repository, get_repository
 from src.errors import NotFoundException
 from src.models.grocery_item import (
@@ -25,7 +26,7 @@ def get_grocery_service(repo: Annotated[Repository, Depends(get_repository)]) ->
 
 @router.get("/api/grocery-items", status_code=status.HTTP_200_OK)
 async def list_grocery_items(
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> GroceryListResponse:
     try:
@@ -38,7 +39,7 @@ async def list_grocery_items(
 @router.post("/api/grocery-items", status_code=status.HTTP_201_CREATED)
 async def add_grocery_item(
     body: AddGroceryItemRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> GroceryItemResponse:
     try:
@@ -50,7 +51,7 @@ async def add_grocery_item(
 @router.post("/api/grocery-items/from-recipe", status_code=status.HTTP_201_CREATED)
 async def add_from_recipe(
     body: AddFromRecipeRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> list[GroceryItemResponse]:
     try:
@@ -64,7 +65,7 @@ async def add_from_recipe(
 async def patch_grocery_item(
     item_id: str,
     body: PatchGroceryItemRequest,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> GroceryItemResponse:
     log.info(f"Patching grocery item {item_id} (bought={body.bought})")
@@ -79,7 +80,7 @@ async def patch_grocery_item(
 
 @router.delete("/api/grocery-items/history", status_code=status.HTTP_204_NO_CONTENT)
 async def clear_history(
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> None:
     try:
@@ -91,7 +92,7 @@ async def clear_history(
 @router.delete("/api/grocery-items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_grocery_item(
     item_id: str,
-    current_user: Annotated[Dict, Depends(get_current_user)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     service: Annotated[GroceryService, Depends(get_grocery_service)],
 ) -> None:
     log.info(f"Deleting grocery item {item_id}")
