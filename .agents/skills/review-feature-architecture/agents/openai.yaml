@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Feature Architecture"
+  short_description: "Review features for architecture and test gaps"
+  default_prompt: "Use $review-feature-architecture to review this feature against the repository conventions."

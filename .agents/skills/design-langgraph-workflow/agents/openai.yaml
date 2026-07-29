@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design LangGraph Workflow"
+  short_description: "Design and test Capple agent workflows"
+  default_prompt: "Use $design-langgraph-workflow to design or modify a Capple LangGraph workflow."

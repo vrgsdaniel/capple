@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement API Endpoint"
+  short_description: "Build layered FastAPI endpoints safely"
+  default_prompt: "Use $implement-api-endpoint to add a tested API endpoint to Capple."
