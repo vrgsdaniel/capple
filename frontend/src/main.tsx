@@ -14,6 +14,8 @@ const Login = lazy(() => import('@/pages/Login'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
 const HomePage = lazy(() => import('@/pages/HomePage'))
 const SectionPage = lazy(() => import('@/pages/SectionPage'))
+const HouseholdPage = lazy(() => import('@/pages/HouseholdPage'))
+const AccountPage = lazy(() => import('@/pages/AccountPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -55,6 +57,22 @@ function AppRoutes() {
               <HouseholdRoute>
                 <HomePage />
               </HouseholdRoute>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/household"
+          element={
+            <ProtectedRoute>
+              <HouseholdPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <AccountPage />
             </ProtectedRoute>
           }
         />

@@ -20,6 +20,8 @@ export interface HouseholdContextValue {
   refetch: () => Promise<void>
   createHousehold: (name: string) => Promise<void>
   joinHousehold: (inviteCode: string) => Promise<void>
+  leaveHousehold: () => Promise<void>
+  deleteHousehold: () => Promise<void>
 }
 
 export const HouseholdContext = createContext<HouseholdContextValue | null>(null)

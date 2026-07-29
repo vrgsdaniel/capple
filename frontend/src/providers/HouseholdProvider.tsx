@@ -55,8 +55,18 @@ export function HouseholdProvider({ children }: { children: React.ReactNode }) {
     await fetchHousehold()
   }
 
+  const leaveHousehold = async () => {
+    await api.delete('/api/households/me/leave')
+    setHousehold(null)
+  }
+
+  const deleteHousehold = async () => {
+    await api.delete('/api/households/me')
+    setHousehold(null)
+  }
+
   return (
-    <HouseholdContext value={{ household, loading, refetch: fetchHousehold, createHousehold, joinHousehold }}>
+    <HouseholdContext value={{ household, loading, refetch: fetchHousehold, createHousehold, joinHousehold, leaveHousehold, deleteHousehold }}>
       {children}
     </HouseholdContext>
   )
