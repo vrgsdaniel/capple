@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Vite Feature"
+  short_description: "Build tested React and Vite features"
+  default_prompt: "Use $build-vite-feature to implement a frontend feature in Capple."
