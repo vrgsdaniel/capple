@@ -32,7 +32,13 @@ export function __resetHouseholdMembersCacheForTests() {
   inFlightRequest = null
 }
 
-export function useHouseholdMembers(): { members: HouseholdMembers | null; loading: boolean } {
+export function invalidateHouseholdMembersCache() {
+  cachedMembers = null
+  hasCache = false
+  inFlightRequest = null
+}
+
+export function useHouseholdMembers(): { members: HouseholdMembers | null; loading: boolean; refetch: () => Promise<void> } {
   const [members, setMembers] = useState<HouseholdMembers | null>(hasCache ? cachedMembers : null)
   const [loading, setLoading] = useState(!hasCache)
 
@@ -50,5 +56,13 @@ export function useHouseholdMembers(): { members: HouseholdMembers | null; loadi
     return () => { cancelled = true }
   }, [])
 
-  return { members, loading }
+  const refetch = async () => {
+    invalidateHouseholdMembersCache()
+    setLoading(true)
+    const result = await fetchHouseholdMembers()
+    setMembers(result)
+    setLoading(false)
+  }
+
+  return { members, loading, refetch }
 }

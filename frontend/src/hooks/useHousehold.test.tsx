@@ -28,6 +28,8 @@ describe('useHousehold', () => {
       refetch: jest.fn(async () => undefined),
       createHousehold: jest.fn(async () => undefined),
       joinHousehold: jest.fn(async () => undefined),
+      leaveHousehold: jest.fn(async () => undefined),
+      deleteHousehold: jest.fn(async () => undefined),
     }
 
     function Wrapper({ children }: { children: ReactNode }) {
