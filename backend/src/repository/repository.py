@@ -11,6 +11,11 @@ from src.utils.logger import logger as log
 
 class Repository:
     _APP_SCHEMA = "app"
+    _RECIPE_RESULT_PAGE_SIZE = 500
+    _RECIPE_ID_CHUNK_SIZE = 200
+    _RECIPE_SEARCH_COLUMNS = (
+        "id,name,recipe_type,labels,ingredients,prep_time_minutes,cook_time_minutes,rating,image_uri,num_ratings"
+    )
 
     def __init__(self, client: AsyncClient):
         self.client = client
@@ -124,61 +129,60 @@ class Repository:
         """Get full recipe details row."""
         return await self.store("recipes").find_one(Criteria().eq("id", recipe_id))
 
-    async def find_recipes_with_count(
-        self,
-        search: str | None = None,
-        recipe_type: str | None = None,
-        labels: list[str] | None = None,
-        ingredients: list[str] | None = None,
-        sort_by: str = "cook_time_minutes",
-        sort_order: str = "asc",
-        page: int = 1,
-        limit: int = 20,
-    ) -> tuple[list[dict], int]:
-        """Find recipes and total count in one DB round-trip. Count reflects pre-array-filter rows."""
-        criteria = Criteria()
+    async def find_recipe_candidates(self, text: str | None = None) -> list[dict]:
+        """Load recipe rows, using the database only to identify and rank FTS matches."""
+        recipe_store = self.store("recipes")
+        if not text:
+            recipes = await self._find_all_recipe_rows(recipe_store, self._RECIPE_SEARCH_COLUMNS)
+            for recipe in recipes:
+                recipe["relevance"] = 0.0
+            return recipes
 
-        # Search filter (ILIKE on name)
-        if search:
-            # TODO: For better search, consider adding a tsvector column and using full-text search instead of ILIKE
-            criteria = criteria.ilike("name", f"%{search}%")
+        matches: list[dict] = []
+        offset = 0
+        while True:
+            batch = await recipe_store.call_rpc(
+                "match_recipes",
+                {"p_text": text},
+                limit=self._RECIPE_RESULT_PAGE_SIZE,
+                offset=offset,
+            )
+            matches.extend(batch)
+            if len(batch) < self._RECIPE_RESULT_PAGE_SIZE:
+                break
+            offset += self._RECIPE_RESULT_PAGE_SIZE
 
-        # Exact filters
-        if recipe_type:
-            criteria = criteria.eq("recipe_type", recipe_type)
+        relevance_by_id = {str(match["recipe_id"]): match["relevance"] for match in matches}
+        recipe_ids = list(relevance_by_id)
+        recipes: list[dict] = []
+        for index in range(0, len(recipe_ids), self._RECIPE_ID_CHUNK_SIZE):
+            id_batch = recipe_ids[index : index + self._RECIPE_ID_CHUNK_SIZE]
+            recipes.extend(await recipe_store.find(Criteria().in_("id", id_batch).select(self._RECIPE_SEARCH_COLUMNS)))
 
-        # Sorting (validate to prevent injection)
-        valid_sorts = {"rating", "prep_time_minutes", "cook_time_minutes"}
-        sort_col = sort_by if sort_by in valid_sorts else "cook_time_minutes"
-        sort_asc = sort_order.lower() != "desc"
-        criteria = criteria.order(sort_col, ascending=sort_asc)
+        for recipe in recipes:
+            recipe["relevance"] = relevance_by_id[str(recipe["id"])]
+        return recipes
 
-        # Pagination
-        offset = (page - 1) * limit
-        criteria = criteria.limit(limit).offset(offset)
+    async def find_all_recipes(self) -> list[dict]:
+        """Load complete recipe rows for catalogue maintenance tasks."""
+        return await self._find_all_recipe_rows(self.store("recipes"), "*")
 
-        recipes, total = await self.store("recipes").find(criteria, with_count=True)
-
-        # Filter by labels/ingredients (client-side for simplicity, can be optimized later)
-        if labels or ingredients:
-            recipes = self._filter_recipes_by_arrays(recipes, labels, ingredients)
-
-        return recipes, total
-
-    def _filter_recipes_by_arrays(
-        self, recipes: list[dict], labels: list[str] | None, ingredients: list[str] | None
-    ) -> list[dict]:
-        """Filter recipes by labels or ingredients (client-side JSONB filtering)."""
-        filtered = recipes
-        if labels:
-            label_set = set(labels)
-            filtered = [r for r in filtered if r.get("labels") and any(label in label_set for label in r["labels"])]
-        if ingredients:
-            ingredient_set = set(ingredients)
-            filtered = [
-                r for r in filtered if r.get("ingredients") and any(ing in ingredient_set for ing in r["ingredients"])
-            ]
-        return filtered
+    async def _find_all_recipe_rows(self, recipe_store: Store, columns: str) -> list[dict]:
+        recipes: list[dict] = []
+        offset = 0
+        while True:
+            batch = await recipe_store.find(
+                Criteria()
+                .select(columns)
+                .order("id", ascending=True)
+                .limit(self._RECIPE_RESULT_PAGE_SIZE)
+                .offset(offset)
+            )
+            recipes.extend(batch)
+            if len(batch) < self._RECIPE_RESULT_PAGE_SIZE:
+                break
+            offset += self._RECIPE_RESULT_PAGE_SIZE
+        return recipes
 
     async def bulk_insert_recipes(self, recipes: list[dict]) -> list[dict]:
         """Insert multiple recipes in a single request."""
@@ -206,9 +210,13 @@ class Repository:
         if not recipe_ids:
             return {}
 
-        interactions = await self.store("recipe_user_interactions").find(
-            Criteria().eq("user_id", user_id).in_("recipe_id", recipe_ids)
-        )
+        interaction_store = self.store("recipe_user_interactions")
+        interactions: list[dict] = []
+        for index in range(0, len(recipe_ids), self._RECIPE_ID_CHUNK_SIZE):
+            id_batch = recipe_ids[index : index + self._RECIPE_ID_CHUNK_SIZE]
+            interactions.extend(
+                await interaction_store.find(Criteria().eq("user_id", user_id).in_("recipe_id", id_batch))
+            )
 
         result = {recipe_id: {"liked": False, "cooked": False, "user_rating": None} for recipe_id in recipe_ids}
         for interaction in interactions:

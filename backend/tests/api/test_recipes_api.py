@@ -85,7 +85,7 @@ class TestListRecipes:
                 ],
                 "total": 1,
                 "page": 1,
-                "limit": 20,
+                "limit": 24,
             }
         )
 
@@ -98,8 +98,10 @@ class TestListRecipes:
         assert data["items"][0]["name"] == "Pasta"
         call_kwargs = mock_service.list_recipes.call_args[1]
         assert call_kwargs["user_id"] == FAKE_USER.id
+        assert call_kwargs["search_spec"]["sort"] == "relevance"
+        assert call_kwargs["search_spec"]["limit"] == 24
 
-    def test_with_search_filter(self, client, mock_service):
+    def test_with_search_filters(self, client, mock_service):
         mock_service.list_recipes = AsyncMock(
             return_value={
                 "items": [
@@ -115,27 +117,38 @@ class TestListRecipes:
                 ],
                 "total": 1,
                 "page": 1,
-                "limit": 20,
+                "limit": 24,
             }
         )
 
-        response = client.get("/api/recipes?search=pasta")
+        response = client.get(
+            "/api/recipes"
+            "?search=%20pasta%20"
+            "&meal_types=dinner"
+            "&meal_types=lunch"
+            "&labels=Quick"
+            "&ingredients=Tomato"
+            "&max_total_minutes=30"
+            "&liked=true"
+            "&cooked=false"
+            "&sort=fastest"
+        )
 
         assert response.status_code == 200
         mock_service.list_recipes.assert_called_once()
-        call_kwargs = mock_service.list_recipes.call_args[1]
-        assert call_kwargs["search"] == "pasta"
-        assert call_kwargs["user_id"] == FAKE_USER.id
-
-    def test_with_sorting(self, client, mock_service):
-        mock_service.list_recipes = AsyncMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
-
-        response = client.get("/api/recipes?sort_by=rating&sort_order=desc")
-
-        assert response.status_code == 200
-        call_kwargs = mock_service.list_recipes.call_args[1]
-        assert call_kwargs["sort_by"] == "rating"
-        assert call_kwargs["sort_order"] == "desc"
+        spec = mock_service.list_recipes.call_args.kwargs["search_spec"]
+        assert spec == {
+            "text": "pasta",
+            "meal_types": ["dinner", "lunch"],
+            "labels": ["quick"],
+            "ingredients": ["tomato"],
+            "max_total_minutes": 30,
+            "liked": True,
+            "cooked": False,
+            "sort": "fastest",
+            "page": 1,
+            "limit": 24,
+        }
 
     def test_with_pagination(self, client, mock_service):
         mock_service.list_recipes = AsyncMock(return_value={"items": [], "total": 50, "page": 2, "limit": 10})
@@ -143,18 +156,26 @@ class TestListRecipes:
         response = client.get("/api/recipes?page=2&limit=10")
 
         assert response.status_code == 200
-        call_kwargs = mock_service.list_recipes.call_args[1]
-        assert call_kwargs["page"] == 2
-        assert call_kwargs["limit"] == 10
+        spec = mock_service.list_recipes.call_args.kwargs["search_spec"]
+        assert spec["page"] == 2
+        assert spec["limit"] == 10
 
-    def test_with_labels_filter(self, client, mock_service):
-        mock_service.list_recipes = AsyncMock(return_value={"items": [], "total": 0, "page": 1, "limit": 20})
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "?meal_types=brunch",
+            "?sort=random",
+            "?max_total_minutes=0",
+            "?limit=101",
+        ],
+    )
+    def test_rejects_invalid_search_spec(self, client, mock_service, query):
+        mock_service.list_recipes = AsyncMock()
 
-        response = client.get("/api/recipes?labels=vegan&labels=quick")
+        response = client.get(f"/api/recipes{query}")
 
-        assert response.status_code == 200
-        call_kwargs = mock_service.list_recipes.call_args[1]
-        assert call_kwargs["labels"] == ["vegan", "quick"]
+        assert response.status_code == 422
+        mock_service.list_recipes.assert_not_called()
 
 
 class TestToggleInteractions:

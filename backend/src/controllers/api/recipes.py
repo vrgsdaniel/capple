@@ -6,7 +6,15 @@ from src.controllers.api.users import get_current_user
 from src.models.user import CurrentUser
 from src.repository.repository import Repository, get_repository
 from src.errors import NotFoundException
-from src.models.recipes import RateRecipeRequest, RecipeDetailsResponse, RecipeListItemResponse, RecipeListResponse
+from src.models.recipes import (
+    RateRecipeRequest,
+    RecipeDetailsResponse,
+    RecipeListItemResponse,
+    RecipeListResponse,
+    RecipeMealType,
+    RecipeSearchSpec,
+    RecipeSort,
+)
 from src.service.recipes import RecipeService
 from src.utils.general import http_error_response
 from src.utils.logger import logger as log
@@ -90,30 +98,40 @@ async def get_recipe_details(
 async def list_recipes(
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
     recipe_service: Annotated[RecipeService, Depends(get_recipe_service)],
-    search: Annotated[str | None, Query()] = None,
-    recipe_type: Annotated[str | None, Query()] = None,
-    labels: Annotated[list[str] | None, Query()] = None,
-    ingredients: Annotated[list[str] | None, Query()] = None,
-    sort_by: Annotated[str, Query()] = "cook_time_minutes",
-    sort_order: Annotated[str, Query()] = "asc",
+    search: Annotated[str | None, Query(max_length=200)] = None,
+    meal_types: Annotated[list[RecipeMealType] | None, Query(max_length=10)] = None,
+    labels: Annotated[list[str] | None, Query(max_length=20)] = None,
+    ingredients: Annotated[list[str] | None, Query(max_length=20)] = None,
+    max_total_minutes: Annotated[int | None, Query(ge=1, le=1440)] = None,
+    liked: Annotated[bool | None, Query()] = None,
+    cooked: Annotated[bool | None, Query()] = None,
+    sort: Annotated[RecipeSort, Query()] = "relevance",
     page: Annotated[int, Query(ge=1)] = 1,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    limit: Annotated[int, Query(ge=1, le=100)] = 24,
 ) -> RecipeListResponse:
-    log.info(f"Listing recipes with filters: search={search}, recipe_type={recipe_type}, page={page}")
+    search_spec = RecipeSearchSpec(
+        text=search,
+        meal_types=meal_types or [],
+        labels=labels or [],
+        ingredients=ingredients or [],
+        max_total_minutes=max_total_minutes,
+        liked=liked,
+        cooked=cooked,
+        sort=sort,
+        page=page,
+        limit=limit,
+    )
+    log.info(
+        f"Listing recipes with search={bool(search_spec.text)}, meal_types={search_spec.meal_types}, "
+        f"liked={liked}, cooked={cooked}, page={page}"
+    )
     try:
         result = await recipe_service.list_recipes(
             user_id=current_user.id,
-            search=search,
-            recipe_type=recipe_type,
-            labels=labels,
-            ingredients=ingredients,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            page=page,
-            limit=limit,
+            search_spec=search_spec.model_dump(),
         )
         response = _to_recipe_list_response(result)
-        log.info(f"Successfully listed recipes with filters: search={search}, recipe_type={recipe_type}, page={page}")
+        log.info(f"Successfully listed recipes for user {current_user.id} on page {page}")
         return response
     except Exception as e:
         log.exception(f"Error listing recipes: {e}")

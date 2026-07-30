@@ -20,46 +20,112 @@ class RecipeService:
 
         return recipe
 
-    async def list_recipes(
-        self,
-        user_id: str | None = None,
-        search: str | None = None,
-        recipe_type: str | None = None,
-        labels: list[str] | None = None,
-        ingredients: list[str] | None = None,
-        sort_by: str = "cook_time_minutes",
-        sort_order: str = "asc",
-        page: int = 1,
-        limit: int = 20,
-    ) -> dict:
-        """List recipes with filtering, sorting, and pagination. Includes user interactions if user_id provided."""
-        # Validate pagination params
-        page = max(1, page)
-        limit = min(100, max(1, limit))
-
-        recipes, total = await self.db.find_recipes_with_count(
-            search=search,
-            recipe_type=recipe_type,
-            labels=labels,
-            ingredients=ingredients,
-            sort_by=sort_by,
-            sort_order=sort_order,
-            page=page,
-            limit=limit,
+    async def list_recipes(self, user_id: str, search_spec: dict) -> dict:
+        """Search recipes while keeping changeable filtering and ranking rules in the service."""
+        recipes = await self.db.find_recipe_candidates(search_spec.get("text"))
+        interactions = await self.db.get_recipes_interactions_bulk(
+            [str(recipe["id"]) for recipe in recipes],
+            user_id,
         )
 
-        if user_id and recipes:
-            recipe_ids = [recipe["id"] for recipe in recipes]
-            interactions_map = await self.db.get_recipes_interactions_bulk(recipe_ids, user_id)
-            for recipe in recipes:
-                recipe.update(interactions_map.get(recipe["id"], {}))
+        enriched = [
+            self._normalize_recipe(
+                recipe,
+                interactions.get(
+                    str(recipe["id"]),
+                    {"liked": False, "cooked": False, "user_rating": None},
+                ),
+            )
+            for recipe in recipes
+        ]
+        filtered = [recipe for recipe in enriched if self._matches_filters(recipe, search_spec)]
+        sort = search_spec.get("sort", "relevance")
+        if not search_spec.get("text") and sort == "relevance":
+            sort = "highest_rated"
+        filtered.sort(key=lambda recipe: self._sort_key(recipe, sort))
+
+        page = search_spec.get("page", 1)
+        limit = search_spec.get("limit", 24)
+        offset = (page - 1) * limit
+        items = filtered[offset : offset + limit]
 
         return {
-            "items": recipes,
-            "total": total,
+            "items": items,
+            "total": len(filtered),
             "page": page,
             "limit": limit,
         }
+
+    @staticmethod
+    def _normalize_recipe(recipe: dict, interactions: dict) -> dict:
+        return {
+            **recipe,
+            "recipe_type": recipe.get("recipe_type") or "",
+            "labels": recipe.get("labels") or [],
+            "ingredients": recipe.get("ingredients") or [],
+            "prep_time_minutes": recipe.get("prep_time_minutes") or 0,
+            "cook_time_minutes": recipe.get("cook_time_minutes") or 0,
+            "image_uri": recipe.get("image_uri") or "",
+            "num_ratings": recipe.get("num_ratings") or 0,
+            "relevance": recipe.get("relevance") or 0.0,
+            **interactions,
+        }
+
+    @classmethod
+    def _matches_filters(cls, recipe: dict, search_spec: dict) -> bool:
+        meal_types = set(search_spec.get("meal_types") or [])
+        if meal_types and str(recipe["recipe_type"]).lower() not in meal_types:
+            return False
+
+        labels = set(search_spec.get("labels") or [])
+        recipe_labels = {str(label).lower() for label in recipe["labels"]}
+        if labels and recipe_labels.isdisjoint(labels):
+            return False
+
+        ingredients = search_spec.get("ingredients") or []
+        ingredient_text = " ".join(cls._ingredient_text(value) for value in recipe["ingredients"]).lower()
+        if ingredients and not any(ingredient in ingredient_text for ingredient in ingredients):
+            return False
+
+        max_total_minutes = search_spec.get("max_total_minutes")
+        total_minutes = recipe["prep_time_minutes"] + recipe["cook_time_minutes"]
+        if max_total_minutes is not None and total_minutes > max_total_minutes:
+            return False
+
+        for interaction_type in ("liked", "cooked"):
+            expected = search_spec.get(interaction_type)
+            if expected is not None and recipe[interaction_type] is not expected:
+                return False
+        return True
+
+    @staticmethod
+    def _ingredient_text(value: object) -> str:
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            for key in ("name", "item", "label"):
+                if value.get(key):
+                    return str(value[key])
+        return str(value)
+
+    @staticmethod
+    def _sort_key(recipe: dict, sort: str) -> tuple:
+        name = str(recipe.get("name") or "").lower()
+        recipe_id = str(recipe["id"])
+        rating = recipe.get("rating")
+        rating_key = (rating is None, -float(rating or 0))
+
+        if sort == "fastest":
+            return (
+                recipe["prep_time_minutes"] + recipe["cook_time_minutes"],
+                name,
+                recipe_id,
+            )
+        if sort == "name":
+            return (name, recipe_id)
+        if sort == "relevance":
+            return (-float(recipe["relevance"]), *rating_key, name, recipe_id)
+        return (*rating_key, name, recipe_id)
 
     async def toggle_recipe_like(self, recipe_id: str, user_id: str) -> bool:
         """Toggle like for a recipe. Returns True if now liked, False if unliked."""

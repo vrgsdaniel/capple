@@ -69,7 +69,6 @@ export default function RecipeCard({ recipe, onOpen, onToggleLike }: Props) {
         </div>
         <div className="meals-card-pills">
           <span className="meals-pill">{recipe.mealType}</span>
-          <span className="meals-pill">{recipe.difficulty}</span>
         </div>
       </div>
     </div>
