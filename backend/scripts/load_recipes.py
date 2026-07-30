@@ -91,8 +91,7 @@ def load_recipes():
 
 
 async def fetch_existing(repo: Repository):
-    result, _ = await repo.find_recipes_with_count(page=1, limit=1000)
-    return result
+    return await repo.find_all_recipes()
 
 
 # -----------------------------

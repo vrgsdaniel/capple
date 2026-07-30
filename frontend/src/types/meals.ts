@@ -4,7 +4,6 @@ export interface Recipe {
   emoji: string
   image: string
   mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack'
-  difficulty: 'easy' | 'medium' | 'hard'
   time: number
   rating: number
   myRating: number
@@ -20,17 +19,25 @@ export interface Recipe {
   tags: string[]
 }
 
-export type SortKey = 'default' | 'fastest' | 'rating' | 'cooked' | 'recent'
+export type SortKey = 'relevance' | 'fastest' | 'highest_rated' | 'name'
 
-export interface MealTypeOption {
-  value: string
-  label: string
-  emoji: string
+export interface RecipeSearchSpec {
+  text: string
+  mealTypes: Recipe['mealType'][]
+  labels: string[]
+  ingredients: string[]
+  maxTotalMinutes: number | null
+  liked: boolean | null
+  cooked: boolean | null
+  sort: SortKey
+  page: number
+  limit: number
 }
 
-export interface DifficultyOption {
-  value: string
+export interface MealTypeOption {
+  value: Recipe['mealType']
   label: string
+  emoji: string
 }
 
 export interface TimeBucketOption {
@@ -50,12 +57,6 @@ export const MEAL_TYPES: MealTypeOption[] = [
   { value: 'snack', label: 'Snack', emoji: '🍪' },
 ]
 
-export const DIFFICULTIES: DifficultyOption[] = [
-  { value: 'easy', label: 'Easy' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'hard', label: 'Hard' },
-]
-
 export const TIME_BUCKETS: TimeBucketOption[] = [
   { value: 15, label: '≤ 15 min' },
   { value: 30, label: '≤ 30 min' },
@@ -63,24 +64,8 @@ export const TIME_BUCKETS: TimeBucketOption[] = [
 ]
 
 export const SORT_OPTIONS: SortOption[] = [
-  { value: 'default', label: 'Recommended' },
+  { value: 'relevance', label: 'Best match' },
   { value: 'fastest', label: 'Fastest' },
-  { value: 'rating', label: 'Highest rated' },
-  { value: 'cooked', label: 'Most cooked' },
-  { value: 'recent', label: 'Recently cooked' },
+  { value: 'highest_rated', label: 'Highest rated' },
+  { value: 'name', label: 'Name' },
 ]
-
-export function fuzzyMatch(haystack: string, query: string): boolean {
-  if (!query.trim()) return true
-  const target = haystack.toLowerCase()
-  const tokens = query.toLowerCase().trim().split(/\s+/)
-  return tokens.every(tok => {
-    if (target.includes(tok)) return true
-    let i = 0
-    for (const ch of target) {
-      if (ch === tok[i]) i++
-      if (i === tok.length) return true
-    }
-    return false
-  })
-}

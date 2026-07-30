@@ -115,7 +115,6 @@ export default function RecipeSheet({ recipe, open, onClose, onToggleLike, onTog
           {/* Tags */}
           <div className="meals-sheet-tags">
             <span className="meals-detail-tag">{r.mealType}</span>
-            <span className="meals-detail-tag">{r.difficulty}</span>
             {r.tags.slice(0, 3).map(tag => (
               <span
                 key={tag}

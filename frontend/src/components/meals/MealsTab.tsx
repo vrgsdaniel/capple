@@ -1,19 +1,21 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, X, ArrowDownUp, ChevronDown, ChevronLeft, ChevronRight, Check } from 'lucide-react'
 import RecipeCard from './RecipeCard'
 import RecipeSheet from './RecipeSheet'
 import { useRecipes } from '@/hooks/useRecipes'
 import { useGroceryList } from '@/hooks/useGroceryList'
-import type { SortKey } from '@/types/meals'
-import { MEAL_TYPES, DIFFICULTIES, TIME_BUCKETS, SORT_OPTIONS, fuzzyMatch } from '@/types/meals'
+import type { RecipeSearchSpec, SortKey } from '@/types/meals'
+import { MEAL_TYPES, TIME_BUCKETS, SORT_OPTIONS } from '@/types/meals'
 import './meals.css'
 
 interface SortDropdownProps {
   value: SortKey
   onChange: (v: SortKey) => void
+  relevanceLabel: string
 }
 
-function SortDropdown({ value, onChange }: SortDropdownProps) {
+function SortDropdown({ value, onChange, relevanceLabel }: SortDropdownProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -35,7 +37,7 @@ function SortDropdown({ value, onChange }: SortDropdownProps) {
         onClick={() => setOpen(!open)}
       >
         <ArrowDownUp size={13} strokeWidth={1.75} />
-        <span>Sort: {current?.label}</span>
+        <span>Sort: {value === 'relevance' ? relevanceLabel : current?.label}</span>
         <ChevronDown size={13} strokeWidth={1.75} />
       </button>
       {open && (
@@ -50,7 +52,7 @@ function SortDropdown({ value, onChange }: SortDropdownProps) {
                 setOpen(false)
               }}
             >
-              <span>{opt.label}</span>
+              <span>{opt.value === 'relevance' ? relevanceLabel : opt.label}</span>
               <span className="meals-sort-check">
                 <Check size={14} strokeWidth={1.75} />
               </span>
@@ -63,19 +65,62 @@ function SortDropdown({ value, onChange }: SortDropdownProps) {
 }
 
 export default function MealsTab() {
-  const [page, setPage] = useState(1)
-  const { recipes, total, loading, error, ensureDetails, toggleLike, toggleCooked, rateRecipe } = useRecipes(page)
+  const [urlParams, setUrlParams] = useSearchParams()
+  const search = urlParams.get('q') ?? ''
+  const mealFilters = urlParams
+    .getAll('meal')
+    .filter((value): value is RecipeSearchSpec['mealTypes'][number] =>
+      MEAL_TYPES.some(option => option.value === value),
+    )
+  const labels = urlParams.getAll('label')
+  const ingredients = urlParams.getAll('ingredient')
+  const timeParam = Number(urlParams.get('maxTime'))
+  const timeMax = TIME_BUCKETS.some(option => option.value === timeParam) ? timeParam : null
+  const sortParam = urlParams.get('sort')
+  const sort = SORT_OPTIONS.some(option => option.value === sortParam)
+    ? (sortParam as SortKey)
+    : 'relevance'
+  const liked = urlParams.get('liked') === 'true'
+  const cooked = urlParams.get('cooked') === 'true'
+  const pageParam = Number(urlParams.get('page'))
+  const page = Number.isInteger(pageParam) && pageParam > 0 ? pageParam : 1
+  const limit = 24
+  const searchSpec: RecipeSearchSpec = {
+    text: search,
+    mealTypes: mealFilters,
+    labels,
+    ingredients,
+    maxTotalMinutes: timeMax,
+    liked: liked ? true : null,
+    cooked: cooked ? true : null,
+    sort,
+    page,
+    limit,
+  }
+  const { recipes, total, loading, error, ensureDetails, toggleLike, toggleCooked, rateRecipe } = useRecipes(searchSpec)
   const { addFromRecipe } = useGroceryList()
 
-  const [search, setSearch] = useState('')
-  const [mealFilters, setMealFilters] = useState<string[]>([])
-  const [diffFilters, setDiffFilters] = useState<string[]>([])
-  const [timeMax, setTimeMax] = useState<number | null>(null)
-  const [sort, setSort] = useState<SortKey>('default')
   const [activeId, setActiveId] = useState<string | null>(null)
 
-  function toggleArr(arr: string[], setArr: (v: string[]) => void, v: string) {
-    setArr(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v])
+  function updateSearchParams(
+    update: (next: URLSearchParams) => void,
+    options: { resetPage?: boolean; replace?: boolean } = {},
+  ) {
+    const next = new URLSearchParams(urlParams)
+    update(next)
+    if (options.resetPage !== false) next.delete('page')
+    setUrlParams(next, { replace: options.replace ?? true })
+  }
+
+  function toggleMeal(value: RecipeSearchSpec['mealTypes'][number]) {
+    updateSearchParams(next => {
+      const selected = next.getAll('meal')
+      next.delete('meal')
+      const updated = selected.includes(value)
+        ? selected.filter(item => item !== value)
+        : [...selected, value]
+      updated.forEach(item => next.append('meal', item))
+    })
   }
 
   function handleOpenRecipe(id: string) {
@@ -83,38 +128,17 @@ export default function MealsTab() {
     ensureDetails(id)
   }
 
-  const filtered = useMemo(() => {
-    let out = recipes.filter(r => {
-      if (!fuzzyMatch(`${r.title} ${r.tags.join(' ')} ${r.mealType}`, search))
-        return false
-      if (mealFilters.length > 0 && !mealFilters.includes(r.mealType)) return false
-      if (diffFilters.length > 0 && !diffFilters.includes(r.difficulty)) return false
-      if (timeMax !== null && r.time > timeMax) return false
-      return true
-    })
-    switch (sort) {
-      case 'fastest':
-        out = [...out].sort((a, b) => a.time - b.time)
-        break
-      case 'rating':
-        out = [...out].sort((a, b) => b.rating - a.rating)
-        break
-      case 'cooked':
-        out = [...out].sort((a, b) => (b.cookedCount || 0) - (a.cookedCount || 0))
-        break
-      case 'recent':
-        out = [...out].sort((a, b) =>
-          (b.lastCooked || '').localeCompare(a.lastCooked || ''),
-        )
-        break
-    }
-    return out
-  }, [recipes, search, mealFilters, diffFilters, timeMax, sort])
-
   const activeRecipe = recipes.find(r => r.id === activeId) ?? null
-  const hasFilters = mealFilters.length > 0 || diffFilters.length > 0 || timeMax !== null
+  const hasFilters = (
+    mealFilters.length > 0
+    || labels.length > 0
+    || ingredients.length > 0
+    || timeMax !== null
+    || liked
+    || cooked
+  )
 
-  if (loading) {
+  if (loading && recipes.length === 0) {
     return (
       <div className="meals-tab">
         <div className="meals-empty" style={{ border: 'none' }}>
@@ -124,10 +148,10 @@ export default function MealsTab() {
     )
   }
 
-  if (error) {
+  if (error && recipes.length === 0) {
     return (
       <div className="meals-tab">
-        <div className="meals-empty">
+        <div className="meals-empty" role="alert">
           <div className="meals-empty-title">Could not load recipes</div>
           <div>{error}</div>
         </div>
@@ -150,20 +174,31 @@ export default function MealsTab() {
               type="text"
               placeholder="Search recipes — title, tag, anything…"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={event => updateSearchParams(next => {
+                const value = event.target.value
+                if (value) next.set('q', value)
+                else next.delete('q')
+              })}
             />
             {search && (
               <button
                 type="button"
                 className="meals-search-clear"
-                onClick={() => setSearch('')}
+                onClick={() => updateSearchParams(next => next.delete('q'))}
                 aria-label="Clear search"
               >
                 <X size={14} strokeWidth={1.75} />
               </button>
             )}
           </div>
-          <SortDropdown value={sort} onChange={setSort} />
+          <SortDropdown
+            value={sort}
+            relevanceLabel={search.trim() ? 'Best match' : 'Recommended'}
+            onChange={value => updateSearchParams(next => {
+              if (value === 'relevance') next.delete('sort')
+              else next.set('sort', value)
+            })}
+          />
         </div>
 
         {/* Row 2: meal filter chips */}
@@ -175,7 +210,7 @@ export default function MealsTab() {
                 key={opt.value}
                 type="button"
                 className={`meals-chip${mealFilters.includes(opt.value) ? ' active' : ''}`}
-                onClick={() => toggleArr(mealFilters, setMealFilters, opt.value)}
+                onClick={() => toggleMeal(opt.value)}
               >
                 <span style={{ filter: 'grayscale(0.3)' }}>{opt.emoji}</span>
                 {opt.label}
@@ -184,21 +219,8 @@ export default function MealsTab() {
           </div>
         </div>
 
-        {/* Row 3: difficulty + time + clear all */}
+        {/* Row 3: time + personal filters + clear all */}
         <div className="meals-toolbar-row">
-          <div className="meals-filter-group">
-            <span className="meals-micro">Difficulty</span>
-            {DIFFICULTIES.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                className={`meals-chip${diffFilters.includes(opt.value) ? ' active' : ''}`}
-                onClick={() => toggleArr(diffFilters, setDiffFilters, opt.value)}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
           <div className="meals-filter-group">
             <span className="meals-micro">Time</span>
             {TIME_BUCKETS.map(opt => (
@@ -206,11 +228,39 @@ export default function MealsTab() {
                 key={opt.value}
                 type="button"
                 className={`meals-chip${timeMax === opt.value ? ' active' : ''}`}
-                onClick={() => setTimeMax(timeMax === opt.value ? null : opt.value)}
+                onClick={() => updateSearchParams(next => {
+                  if (timeMax === opt.value) next.delete('maxTime')
+                  else next.set('maxTime', String(opt.value))
+                })}
               >
                 {opt.label}
               </button>
             ))}
+          </div>
+          <div className="meals-filter-group">
+            <span className="meals-micro">My recipes</span>
+            <button
+              type="button"
+              className={`meals-chip${liked ? ' active' : ''}`}
+              aria-pressed={liked}
+              onClick={() => updateSearchParams(next => {
+                if (liked) next.delete('liked')
+                else next.set('liked', 'true')
+              })}
+            >
+              Liked
+            </button>
+            <button
+              type="button"
+              className={`meals-chip${cooked ? ' active' : ''}`}
+              aria-pressed={cooked}
+              onClick={() => updateSearchParams(next => {
+                if (cooked) next.delete('cooked')
+                else next.set('cooked', 'true')
+              })}
+            >
+              Already cooked
+            </button>
           </div>
           {hasFilters && (
             <button
@@ -223,9 +273,14 @@ export default function MealsTab() {
                 fontSize: 12,
               }}
               onClick={() => {
-                setMealFilters([])
-                setDiffFilters([])
-                setTimeMax(null)
+                updateSearchParams(next => {
+                  next.delete('meal')
+                  next.delete('label')
+                  next.delete('ingredient')
+                  next.delete('maxTime')
+                  next.delete('liked')
+                  next.delete('cooked')
+                })
               }}
             >
               Clear all
@@ -235,25 +290,31 @@ export default function MealsTab() {
         </div>
       </div>
 
+      {error && (
+        <p className="mb-3 text-sm text-destructive" role="alert">
+          {error}. Showing previous results.
+        </p>
+      )}
+
       {/* Section head */}
       <div className="meals-section-head">
         <span className="meals-micro">
           {hasFilters || search ? 'Results' : 'All recipes'}
         </span>
         <span className="meals-results-count">
-          {filtered.length} of {total}
+          {total} {total === 1 ? 'recipe' : 'recipes'}
         </span>
       </div>
 
       {/* Content */}
-      {filtered.length === 0 ? (
+      {recipes.length === 0 ? (
         <div className="meals-empty">
           <div className="meals-empty-title">No recipes match</div>
           <div>Try clearing some filters or a different search.</div>
         </div>
       ) : (
         <div className="meals-recipe-grid">
-          {filtered.map(r => (
+          {recipes.map(r => (
             <RecipeCard
               key={r.id}
               recipe={r}
@@ -265,12 +326,19 @@ export default function MealsTab() {
       )}
 
       {/* Pagination */}
-      {total > recipes.length && (
+      {total > limit && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginTop: '20px', marginBottom: '20px' }}>
           <button
             type="button"
             className="meals-btn"
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            onClick={() => updateSearchParams(
+              next => {
+                const previous = Math.max(1, page - 1)
+                if (previous === 1) next.delete('page')
+                else next.set('page', String(previous))
+              },
+              { resetPage: false, replace: false },
+            )}
             disabled={page === 1}
             style={{ opacity: page === 1 ? 0.5 : 1, cursor: page === 1 ? 'not-allowed' : 'pointer' }}
           >
@@ -283,9 +351,12 @@ export default function MealsTab() {
           <button
             type="button"
             className="meals-btn"
-            onClick={() => setPage(p => p + 1)}
-            disabled={recipes.length < 100}
-            style={{ opacity: recipes.length < 100 ? 0.5 : 1, cursor: recipes.length < 100 ? 'not-allowed' : 'pointer' }}
+            onClick={() => updateSearchParams(
+              next => next.set('page', String(page + 1)),
+              { resetPage: false, replace: false },
+            )}
+            disabled={page * limit >= total}
+            style={{ opacity: page * limit >= total ? 0.5 : 1, cursor: page * limit >= total ? 'not-allowed' : 'pointer' }}
           >
             Next
             <ChevronRight size={16} strokeWidth={1.75} />

@@ -1,4 +1,47 @@
-from pydantic import BaseModel, ConfigDict, Field
+from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class RecipeMealType(StrEnum):
+    BREAKFAST = "breakfast"
+    LUNCH = "lunch"
+    DINNER = "dinner"
+    SNACK = "snack"
+
+
+class RecipeSort(StrEnum):
+    RELEVANCE = "relevance"
+    FASTEST = "fastest"
+    HIGHEST_RATED = "highest_rated"
+    NAME = "name"
+
+
+class RecipeSearchSpec(BaseModel):
+    """Validated, deterministic recipe search input."""
+
+    text: str | None = Field(default=None, max_length=200)
+    meal_types: list[RecipeMealType] = Field(default_factory=list, max_length=10)
+    labels: list[str] = Field(default_factory=list, max_length=20)
+    ingredients: list[str] = Field(default_factory=list, max_length=20)
+    max_total_minutes: int | None = Field(default=None, ge=1, le=1440)
+    liked: bool | None = None
+    cooked: bool | None = None
+    sort: RecipeSort = "relevance"
+    page: int = Field(default=1, ge=1)
+    limit: int = Field(default=24, ge=1, le=100)
+
+    @field_validator("text")
+    @classmethod
+    def normalize_text(cls, value: str | None) -> str | None:
+        normalized = value.strip() if value else ""
+        return normalized or None
+
+    @field_validator("labels", "ingredients")
+    @classmethod
+    def normalize_terms(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip().lower() for value in values if value.strip()]
+        return list(dict.fromkeys(normalized))
 
 
 class RateRecipeRequest(BaseModel):

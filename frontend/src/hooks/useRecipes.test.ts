@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import api from '@/lib/api'
-import { useRecipes } from '@/hooks/useRecipes'
+import { DEFAULT_RECIPE_SEARCH_SPEC, useRecipes } from '@/hooks/useRecipes'
 
 jest.mock('@/lib/api', () => ({
   __esModule: true,
@@ -72,29 +72,49 @@ describe('useRecipes', () => {
     expect(r.myRating).toBe(0)
   })
 
-  it('loads recipes with page parameter', async () => {
+  it('sends the complete search specification', async () => {
     mockList()
-    const { result } = renderHook(() => useRecipes(1))
+    const { result } = renderHook(() => useRecipes({
+      ...DEFAULT_RECIPE_SEARCH_SPEC,
+      text: ' pasta ',
+      mealTypes: ['dinner', 'lunch'],
+      labels: ['quick'],
+      ingredients: ['tomato'],
+      maxTotalMinutes: 30,
+      liked: true,
+      cooked: false,
+      sort: 'fastest',
+      page: 2,
+    }))
 
     await waitFor(() => expect(result.current.loading).toBe(false))
 
-    expect(mockedApi.get).toHaveBeenCalledWith('/api/recipes', { params: { limit: 100, page: 1 } })
+    const config = mockedApi.get.mock.calls[0][1]
+    expect(config.params.toString()).toBe(
+      'search=pasta&meal_types=dinner&meal_types=lunch&labels=quick&ingredients=tomato'
+      + '&max_total_minutes=30&liked=true&cooked=false&sort=fastest&page=2&limit=24',
+    )
+    expect(config.signal).toBeInstanceOf(AbortSignal)
   })
 
-  it('refetches when page changes', async () => {
+  it('refetches when the search specification changes', async () => {
     mockList()
-    const { result, rerender } = renderHook(({ page }) => useRecipes(page), {
-      initialProps: { page: 1 },
+    const { result, rerender } = renderHook(({ text }) => useRecipes({
+      ...DEFAULT_RECIPE_SEARCH_SPEC,
+      text,
+    }), {
+      initialProps: { text: 'pasta' },
     })
 
     await waitFor(() => expect(result.current.loading).toBe(false))
     expect(mockedApi.get).toHaveBeenCalledTimes(1)
 
     mockList()
-    rerender({ page: 2 })
+    rerender({ text: 'soup' })
 
     await waitFor(() => expect(mockedApi.get).toHaveBeenCalledTimes(2))
-    expect(mockedApi.get).toHaveBeenLastCalledWith('/api/recipes', { params: { limit: 100, page: 2 } })
+    const config = mockedApi.get.mock.calls[1][1]
+    expect(config.params.toString()).toContain('search=soup')
   })
 
   it('maps liked/cooked/user_rating from list item', async () => {
@@ -273,6 +293,24 @@ describe('useRecipes', () => {
       })
 
       expect(result.current.recipes[0].saved).toBe(false)
+    })
+
+    it('removes a recipe that no longer matches the liked filter', async () => {
+      mockList([makeListItem({ liked: true })], 2)
+      mockedApi.post.mockResolvedValueOnce({ data: makeDetail({ liked: false }) })
+
+      const { result } = renderHook(() => useRecipes({
+        ...DEFAULT_RECIPE_SEARCH_SPEC,
+        liked: true,
+      }))
+      await waitFor(() => expect(result.current.loading).toBe(false))
+
+      await act(async () => {
+        await result.current.toggleLike('r1')
+      })
+
+      expect(result.current.recipes).toEqual([])
+      expect(result.current.total).toBe(1)
     })
   })
 

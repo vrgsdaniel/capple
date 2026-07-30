@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import api from '@/lib/api'
-import type { Recipe } from '@/types/meals'
+import type { Recipe, RecipeSearchSpec } from '@/types/meals'
 
 // ─── API response shapes ───────────────────────────────────────────────────
 
@@ -53,7 +53,6 @@ function fromListItem(item: ApiListItem): Recipe {
     emoji: emojiForType(item.recipe_type),
     image: item.image_uri ?? '',
     mealType: normalizeMealType(item.recipe_type),
-    difficulty: 'easy',
     time: (item.prep_time_minutes ?? 0) + (item.cook_time_minutes ?? 0),
     rating: item.rating ?? 0,
     myRating: item.user_rating ?? 0,
@@ -107,25 +106,72 @@ function detailPatch(detail: ApiDetail): Partial<Recipe> {
 
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
-export function useRecipes(page: number = 1) {
+function toApiParams(searchSpec: RecipeSearchSpec): URLSearchParams {
+  const params = new URLSearchParams()
+  if (searchSpec.text.trim()) params.set('search', searchSpec.text.trim())
+  searchSpec.mealTypes.forEach(value => params.append('meal_types', value))
+  searchSpec.labels.forEach(value => params.append('labels', value))
+  searchSpec.ingredients.forEach(value => params.append('ingredients', value))
+  if (searchSpec.maxTotalMinutes !== null) {
+    params.set('max_total_minutes', String(searchSpec.maxTotalMinutes))
+  }
+  if (searchSpec.liked !== null) params.set('liked', String(searchSpec.liked))
+  if (searchSpec.cooked !== null) params.set('cooked', String(searchSpec.cooked))
+  params.set('sort', searchSpec.sort)
+  params.set('page', String(searchSpec.page))
+  params.set('limit', String(searchSpec.limit))
+  return params
+}
+
+export const DEFAULT_RECIPE_SEARCH_SPEC: RecipeSearchSpec = {
+  text: '',
+  mealTypes: [],
+  labels: [],
+  ingredients: [],
+  maxTotalMinutes: null,
+  liked: null,
+  cooked: null,
+  sort: 'relevance',
+  page: 1,
+  limit: 24,
+}
+
+export function useRecipes(searchSpec: RecipeSearchSpec = DEFAULT_RECIPE_SEARCH_SPEC) {
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const fetchedDetails = useRef(new Set<string>())
+  const queryString = useMemo(() => toApiParams(searchSpec).toString(), [searchSpec])
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true)
-    api
-      .get<{ items: ApiListItem[]; total: number }>('/api/recipes', { params: { limit: 100, page } })
-      .then(res => {
-        setRecipes(res.data.items.map(fromListItem))
-        setTotal(res.data.total)
-      })
-      .catch(() => setError('Failed to load recipes'))
-      .finally(() => setLoading(false))
-  }, [page])
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => {
+      setLoading(true)
+      setError(null)
+      api
+        .get<{ items: ApiListItem[]; total: number }>('/api/recipes', {
+          params: new URLSearchParams(queryString),
+          signal: controller.signal,
+        })
+        .then(res => {
+          fetchedDetails.current.clear()
+          setRecipes(res.data.items.map(fromListItem))
+          setTotal(res.data.total)
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setError('Failed to load recipes')
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setLoading(false)
+        })
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [queryString])
 
   function updateRecipe(id: string, patch: Partial<Recipe>) {
     setRecipes(rs => rs.map(r => (r.id === id ? { ...r, ...patch } : r)))
@@ -144,12 +190,22 @@ export function useRecipes(page: number = 1) {
 
   async function toggleLike(id: string): Promise<void> {
     const res = await api.post<ApiDetail>(`/api/recipes/${id}/like`)
-    updateRecipe(id, { saved: res.data.liked })
+    if (searchSpec.liked !== null && res.data.liked !== searchSpec.liked) {
+      setRecipes(rs => rs.filter(recipe => recipe.id !== id))
+      setTotal(current => Math.max(0, current - 1))
+    } else {
+      updateRecipe(id, { saved: res.data.liked })
+    }
   }
 
   async function toggleCooked(id: string): Promise<void> {
     const res = await api.post<ApiDetail>(`/api/recipes/${id}/cooked`)
-    updateRecipe(id, { cooked: res.data.cooked })
+    if (searchSpec.cooked !== null && res.data.cooked !== searchSpec.cooked) {
+      setRecipes(rs => rs.filter(recipe => recipe.id !== id))
+      setTotal(current => Math.max(0, current - 1))
+    } else {
+      updateRecipe(id, { cooked: res.data.cooked })
+    }
   }
 
   async function rateRecipe(id: string, rating: number): Promise<void> {

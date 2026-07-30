@@ -76,98 +76,174 @@ class TestGetRecipeDetails:
 
 
 class TestListRecipes:
-    async def test_success_no_filters_without_user(self, service, mock_db):
-        mock_recipes = [
-            {
-                "id": "recipe-1",
-                "name": "Pasta",
-                "recipe_type": "pasta",
-                "labels": ["italian"],
-                "prep_time_minutes": 10,
-                "cook_time_minutes": 20,
-                "rating": 5,
-            }
-        ]
-        mock_db.find_recipes_with_count.return_value = (mock_recipes, 1)
+    @staticmethod
+    def recipe(recipe_id: str, **overrides):
+        recipe = {
+            "id": recipe_id,
+            "name": recipe_id,
+            "recipe_type": "dinner",
+            "labels": [],
+            "ingredients": [],
+            "prep_time_minutes": 10,
+            "cook_time_minutes": 20,
+            "rating": None,
+            "num_ratings": 0,
+            "image_uri": None,
+            "relevance": 0.0,
+        }
+        return {**recipe, **overrides}
 
-        result = await service.list_recipes()
-
-        assert result["total"] == 1
-        assert len(result["items"]) == 1
-        assert result["items"][0]["name"] == "Pasta"
-        assert "liked" not in result["items"][0]
-        assert result["page"] == 1
-        assert result["limit"] == 20
-        mock_db.get_recipes_interactions_bulk.assert_not_called()
-
-    async def test_success_with_user(self, service, mock_db):
-        user_id = "user-456"
-        mock_recipes = [
-            {
-                "id": "recipe-1",
-                "name": "Pasta",
-                "recipe_type": "pasta",
-                "labels": ["italian"],
-                "prep_time_minutes": 10,
-                "cook_time_minutes": 20,
-                "rating": 5,
-            }
-        ]
-        mock_interactions = {"recipe-1": {"liked": True, "cooked": False, "user_rating": 4}}
-        mock_db.find_recipes_with_count.return_value = (mock_recipes, 1)
-        mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
-
-        result = await service.list_recipes(user_id=user_id)
-
-        assert result["total"] == 1
-        assert result["items"][0]["liked"] is True
-        assert result["items"][0]["user_rating"] == 4
-        mock_db.get_recipes_interactions_bulk.assert_called_once_with(["recipe-1"], user_id)
-
-    async def test_pagination_defaults(self, service, mock_db):
-        mock_db.find_recipes_with_count.return_value = ([], 0)
-
-        result = await service.list_recipes()
-
-        assert result["page"] == 1
-        assert result["limit"] == 20
-        call_kwargs = mock_db.find_recipes_with_count.call_args[1]
-        assert call_kwargs["page"] == 1
-        assert call_kwargs["limit"] == 20
-
-    async def test_pagination_validation(self, service, mock_db):
-        mock_db.find_recipes_with_count.return_value = ([], 0)
-
-        result = await service.list_recipes(page=0)
-        assert result["page"] == 1
-
-        result = await service.list_recipes(limit=200)
-        call_kwargs = mock_db.find_recipes_with_count.call_args[1]
-        assert call_kwargs["limit"] == 100
+    @staticmethod
+    def search_spec(**overrides):
+        spec = {
+            "text": None,
+            "meal_types": [],
+            "labels": [],
+            "ingredients": [],
+            "max_total_minutes": None,
+            "liked": None,
+            "cooked": None,
+            "sort": "relevance",
+            "page": 1,
+            "limit": 24,
+        }
+        return {**spec, **overrides}
 
     @pytest.mark.parametrize(
-        "call_kwargs, expected_forwarded",
+        ("spec_patch", "recipe_patch", "interaction_patch"),
         [
-            ({"search": "pasta"}, {"search": "pasta"}),
-            (
-                {"sort_by": "rating", "sort_order": "desc"},
-                {"sort_by": "rating", "sort_order": "desc"},
+            pytest.param({"meal_types": ["lunch"]}, {"recipe_type": "dinner"}, {}, id="meal-type"),
+            pytest.param({"labels": ["quick"]}, {"labels": ["slow"]}, {}, id="label"),
+            pytest.param({"ingredients": ["tomato"]}, {"ingredients": ["oats"]}, {}, id="ingredient"),
+            pytest.param(
+                {"max_total_minutes": 20},
+                {"prep_time_minutes": 10, "cook_time_minutes": 20},
+                {},
+                id="total-time",
             ),
-            (
-                {"labels": ["vegan"], "ingredients": ["tomato"]},
-                {"labels": ["vegan"], "ingredients": ["tomato"]},
+            pytest.param({"liked": True}, {}, {"liked": False}, id="liked"),
+            pytest.param({"cooked": True}, {}, {"cooked": False}, id="cooked"),
+        ],
+    )
+    async def test_each_filter_rejects_independently(
+        self,
+        service,
+        mock_db,
+        spec_patch,
+        recipe_patch,
+        interaction_patch,
+    ):
+        mock_db.find_recipe_candidates.return_value = [self.recipe("candidate", **recipe_patch)]
+        mock_db.get_recipes_interactions_bulk.return_value = {
+            "candidate": {
+                "liked": True,
+                "cooked": True,
+                "user_rating": None,
+                **interaction_patch,
+            }
+        }
+
+        result = await service.list_recipes("user-456", self.search_spec(**spec_patch))
+
+        assert result["items"] == []
+        assert result["total"] == 0
+
+    @pytest.mark.parametrize(
+        ("spec_patch", "recipe_patch"),
+        [
+            pytest.param(
+                {"meal_types": ["breakfast", "dinner"]},
+                {"recipe_type": "dinner"},
+                id="meal-types",
+            ),
+            pytest.param(
+                {"labels": ["slow", "quick"]},
+                {"labels": ["Quick"]},
+                id="labels",
+            ),
+            pytest.param(
+                {"ingredients": ["potato", "tomato"]},
+                {"ingredients": [{"name": "Cherry Tomato"}]},
+                id="ingredients",
             ),
         ],
     )
-    async def test_forwards_optional_filters_and_sorting(self, service, mock_db, call_kwargs, expected_forwarded):
-        mock_db.find_recipes_with_count.return_value = ([], 0)
+    async def test_multi_value_filters_use_any_semantics(
+        self,
+        service,
+        mock_db,
+        spec_patch,
+        recipe_patch,
+    ):
+        mock_db.find_recipe_candidates.return_value = [self.recipe("matching", **recipe_patch)]
+        mock_db.get_recipes_interactions_bulk.return_value = {
+            "matching": {"liked": False, "cooked": False, "user_rating": 4}
+        }
 
-        result = await service.list_recipes(**call_kwargs)
+        result = await service.list_recipes("user-456", self.search_spec(**spec_patch))
 
-        assert result["total"] == 0
-        actual_kwargs = mock_db.find_recipes_with_count.call_args[1]
-        for key, value in expected_forwarded.items():
-            assert actual_kwargs[key] == value
+        assert result["total"] == 1
+        assert [item["id"] for item in result["items"]] == ["matching"]
+        assert result["items"][0]["user_rating"] == 4
+        assert result["items"][0]["image_uri"] == ""
+
+    async def test_sorts_relevance_then_rating_then_name(self, service, mock_db):
+        mock_db.find_recipe_candidates.return_value = [
+            self.recipe("beta", name="Beta", relevance=0.5, rating=5, num_ratings=100),
+            self.recipe("alpha", name="Alpha", relevance=0.5, rating=5, num_ratings=1),
+            self.recipe("top", name="Top", relevance=0.8, rating=1, num_ratings=1),
+            self.recipe("lower-rating", name="A", relevance=0.5, rating=4, num_ratings=99),
+        ]
+        mock_db.get_recipes_interactions_bulk.return_value = {}
+        spec = {"text": "dinner", "sort": "relevance", "page": 1, "limit": 24}
+
+        result = await service.list_recipes("user-456", spec)
+
+        assert [item["id"] for item in result["items"]] == [
+            "top",
+            "alpha",
+            "beta",
+            "lower-rating",
+        ]
+        mock_db.find_recipe_candidates.assert_called_once_with("dinner")
+
+    async def test_no_text_relevance_defaults_to_highest_rated_and_paginates(self, service, mock_db):
+        mock_db.find_recipe_candidates.return_value = [
+            self.recipe("unrated", name="A", rating=None),
+            self.recipe("lower", name="B", rating=4, num_ratings=10),
+            self.recipe("top-b", name="Beta", rating=5, num_ratings=3),
+            self.recipe("top-a", name="Alpha", rating=5, num_ratings=3),
+        ]
+        mock_db.get_recipes_interactions_bulk.return_value = {}
+        spec = {"text": None, "sort": "relevance", "page": 2, "limit": 2}
+
+        result = await service.list_recipes("user-456", spec)
+
+        assert result["total"] == 4
+        assert [item["id"] for item in result["items"]] == ["lower", "unrated"]
+        assert (result["page"], result["limit"]) == (2, 2)
+        assert spec["sort"] == "relevance"
+
+    @pytest.mark.parametrize(
+        ("sort", "expected"),
+        [
+            ("fastest", ["fast", "slow"]),
+            ("name", ["slow", "fast"]),
+        ],
+    )
+    async def test_explicit_sorts(self, service, mock_db, sort, expected):
+        mock_db.find_recipe_candidates.return_value = [
+            self.recipe("fast", name="Zulu", prep_time_minutes=5, cook_time_minutes=5),
+            self.recipe("slow", name="Alpha", prep_time_minutes=20, cook_time_minutes=20),
+        ]
+        mock_db.get_recipes_interactions_bulk.return_value = {}
+
+        result = await service.list_recipes(
+            "user-456",
+            {"text": None, "sort": sort, "page": 1, "limit": 24},
+        )
+
+        assert [item["id"] for item in result["items"]] == expected
 
 
 class TestToggleInteractions:
@@ -246,42 +322,3 @@ class TestRateRecipe:
 
         with pytest.raises(NotFoundException):
             await service.rate_recipe("nonexistent", "user-456", 4)
-
-
-class TestListRecipesWithInteractions:
-    async def test_includes_interactions_for_all_recipes(self, service, mock_db):
-        user_id = "user-456"
-        mock_recipes = [
-            {
-                "id": "recipe-1",
-                "name": "Pasta",
-                "recipe_type": "pasta",
-                "labels": [],
-                "prep_time_minutes": 10,
-                "cook_time_minutes": 20,
-            },
-            {
-                "id": "recipe-2",
-                "name": "Pizza",
-                "recipe_type": "italian",
-                "labels": [],
-                "prep_time_minutes": 15,
-                "cook_time_minutes": 25,
-            },
-        ]
-        mock_interactions = {
-            "recipe-1": {"liked": True, "cooked": False, "user_rating": None},
-            "recipe-2": {"liked": False, "cooked": True, "user_rating": 5},
-        }
-        mock_db.find_recipes_with_count.return_value = (mock_recipes, 2)
-        mock_db.get_recipes_interactions_bulk.return_value = mock_interactions
-
-        result = await service.list_recipes(user_id=user_id)
-
-        assert result["items"][0]["liked"] is True
-        assert result["items"][0]["cooked"] is False
-        assert result["items"][0]["user_rating"] is None
-
-        assert result["items"][1]["liked"] is False
-        assert result["items"][1]["cooked"] is True
-        assert result["items"][1]["user_rating"] == 5

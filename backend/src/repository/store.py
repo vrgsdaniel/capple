@@ -59,6 +59,21 @@ class Store:
         data = await self.find(criteria)
         return data[0] if data else None
 
+    async def call_rpc(
+        self,
+        function_name: str,
+        params: dict,
+        *,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Execute a schema-scoped database function and return its rows."""
+        query = self._client.schema(self._schema_name).rpc(function_name, params)
+        if limit is not None:
+            query = query.range(offset, offset + limit - 1)
+        result = await query.execute()
+        return result.data
+
     async def get_by_id(self, entity_id: str) -> dict | None:
         return await self.find_one(Criteria().eq("id", entity_id))
 
