@@ -6,7 +6,7 @@ from supabase import AsyncClient, acreate_client
 from postgrest.exceptions import APIError
 
 from src.repository.criteria import Criteria
-from src.errors import ConflictException, NotFoundException
+from src.errors import ConflictException, NotFoundException, ValidationException
 from src.settings import get_supabase_settings
 
 
@@ -25,6 +25,16 @@ class Store:
 
     def _table(self):
         return self._client.schema(self._schema_name).table(self._table_name)
+
+    def _translate_write_error(self, e: APIError) -> Exception:
+        """Map a Postgres constraint violation to the project's typed exceptions."""
+        if e.code == "23505":
+            return ConflictException(f"Duplicate entry in {self._table_name}")
+        if e.code == "23503":
+            return NotFoundException(f"Referenced entity not found for {self._table_name}")
+        if e.code == "23514":
+            return ValidationException(f"Invalid data for {self._table_name}")
+        return e
 
     def _apply_filters(self, query, criteria: Criteria):
         for f in criteria._filters:
@@ -85,11 +95,7 @@ class Store:
         try:
             result = await self._table().insert(data).execute()
         except APIError as e:
-            if e.code == "23505":
-                raise ConflictException(f"Duplicate entry in {self._table_name}") from e
-            if e.code == "23503":
-                raise NotFoundException(f"Referenced entity not found for {self._table_name}") from e
-            raise
+            raise self._translate_write_error(e) from e
         if isinstance(data, list):
             return result.data
         return result.data[0]
@@ -100,18 +106,23 @@ class Store:
         try:
             result = await self._table().upsert(data, on_conflict=on_conflict).execute()
         except APIError as e:
-            if e.code == "23503":
-                raise NotFoundException(f"Referenced entity not found for {self._table_name}") from e
-            raise
+            raise self._translate_write_error(e) from e
         return result.data[0]
 
     async def update(self, entity_id: str, data: dict) -> dict | None:
-        result = await self._table().update(data).eq("id", entity_id).execute()
+        try:
+            result = await self._table().update(data).eq("id", entity_id).execute()
+        except APIError as e:
+            raise self._translate_write_error(e) from e
         return result.data[0] if result.data else None
 
     async def update_where(self, criteria: Criteria, data: dict) -> list[dict]:
         query = self._apply_filters(self._table().update(data), criteria)
-        return (await query.execute()).data
+        try:
+            result = await query.execute()
+        except APIError as e:
+            raise self._translate_write_error(e) from e
+        return result.data
 
     async def delete(self, entity_id: str) -> None:
         await self._table().delete().eq("id", entity_id).execute()

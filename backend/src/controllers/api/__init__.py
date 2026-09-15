@@ -1,4 +1,5 @@
 from src.controllers.api.battery_logs import router as battery_logs_router
+from src.controllers.api.calendar import router as calendar_router
 from src.controllers.api.groceries import router as groceries_router
 from src.controllers.api.infrastructure import router as infrastructure_router
 from src.controllers.api.tasks import router as tasks_router
@@ -6,4 +7,4 @@ from src.controllers.api.users import router as users_router
 from src.controllers.api.chat import router as chat_router
 from src.controllers.api.recipes import router as recipes_router
 
-routers = [infrastructure_router, users_router, battery_logs_router, chat_router, recipes_router, groceries_router, tasks_router]
+routers = [infrastructure_router, users_router, battery_logs_router, chat_router, recipes_router, groceries_router, tasks_router, calendar_router]
