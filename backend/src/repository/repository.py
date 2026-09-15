@@ -13,6 +13,9 @@ class Repository:
     _APP_SCHEMA = "app"
     _RECIPE_RESULT_PAGE_SIZE = 500
     _RECIPE_ID_CHUNK_SIZE = 200
+    CALENDAR_EVENT_LIMIT = 1000
+    CALENDAR_BIRTHDAY_LIMIT = 500
+    CALENDAR_CHORE_DOT_LIMIT = 1000
     _RECIPE_SEARCH_COLUMNS = (
         "id,name,recipe_type,labels,ingredients,prep_time_minutes,cook_time_minutes,rating,image_uri,num_ratings"
     )
@@ -27,6 +30,12 @@ class Repository:
     @staticmethod
     def _normalize_grocery_name(name: str) -> str:
         return re.sub(r"\s+", " ", str(name or "").lower().strip())
+
+    @staticmethod
+    def _warn_if_truncated(label: str, household_id: str, rows: list[dict], limit: int) -> None:
+        """Surface a silently capped result set — an unpaginated query would otherwise just look short."""
+        if len(rows) >= limit:
+            log.warning(f"{label} query hit its {limit}-row cap for household {household_id}; results truncated")
 
     async def is_alive(self) -> bool:
         try:
@@ -422,6 +431,125 @@ class Repository:
         if active_only:
             criteria = criteria.is_("completed_at", None)
         result = await self.store("tasks").delete_where(criteria)
+        return len(result) > 0
+
+    async def find_active_task_dots(self, household_id: str, start: str, end: str) -> list[dict]:
+        """Return active (uncompleted) tasks with due_date in [start, end]. Used for calendar chore badges."""
+        rows = await self.store("tasks").find(
+            Criteria()
+            .eq("household_id", household_id)
+            .is_("completed_at", None)
+            .gte("due_date", start)
+            .lte("due_date", end)
+            .select("id, name, due_date")
+            .limit(self.CALENDAR_CHORE_DOT_LIMIT)
+        )
+        self._warn_if_truncated("Calendar chore dots", household_id, rows, self.CALENDAR_CHORE_DOT_LIMIT)
+        return rows
+
+    # --- calendar events ---
+
+    async def find_events_in_range(self, household_id: str, start: str, end: str) -> list[dict]:
+        rows = await self.store("calendar_events").find(
+            Criteria()
+            .eq("household_id", household_id)
+            .gte("event_date", start)
+            .lte("event_date", end)
+            .order("event_date", ascending=True)
+            .limit(self.CALENDAR_EVENT_LIMIT)
+        )
+        self._warn_if_truncated("Calendar events", household_id, rows, self.CALENDAR_EVENT_LIMIT)
+        return rows
+
+    async def create_event(
+        self,
+        household_id: str,
+        title: str,
+        event_date: str,
+        start_time: str | None,
+        end_time: str | None,
+        location: str | None,
+        description: str | None,
+        created_by: str,
+    ) -> dict:
+        data: dict = {
+            "household_id": household_id,
+            "title": title,
+            "event_date": event_date,
+            "created_by": created_by,
+        }
+        if start_time is not None:
+            data["start_time"] = start_time
+        if end_time is not None:
+            data["end_time"] = end_time
+        if location is not None:
+            data["location"] = location
+        if description is not None:
+            data["description"] = description
+        return await self.store("calendar_events").insert(data)
+
+    async def update_event(self, event_id: str, data: dict, household_id: str | None = None) -> dict | None:
+        # `updated_at` is maintained by the calendar_events_set_updated_at trigger, not here.
+        criteria = Criteria().eq("id", event_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        result = await self.store("calendar_events").update_where(criteria, data)
+        return result[0] if result else None
+
+    async def delete_event(self, event_id: str, household_id: str | None = None) -> bool:
+        criteria = Criteria().eq("id", event_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        result = await self.store("calendar_events").delete_where(criteria)
+        return len(result) > 0
+
+    # --- calendar birthdays ---
+
+    async def find_birthdays_by_household(self, household_id: str) -> list[dict]:
+        rows = await self.store("calendar_birthdays").find(
+            Criteria()
+            .eq("household_id", household_id)
+            .order("person_name", ascending=True)
+            .limit(self.CALENDAR_BIRTHDAY_LIMIT)
+        )
+        self._warn_if_truncated("Calendar birthdays", household_id, rows, self.CALENDAR_BIRTHDAY_LIMIT)
+        return rows
+
+    async def create_birthday(
+        self,
+        household_id: str,
+        person_name: str,
+        birth_month: int,
+        birth_day: int,
+        birth_year: int | None,
+        show_year: bool,
+        created_by: str,
+    ) -> dict:
+        return await self.store("calendar_birthdays").insert(
+            {
+                "household_id": household_id,
+                "person_name": person_name,
+                "birth_month": birth_month,
+                "birth_day": birth_day,
+                "birth_year": birth_year,
+                "show_year": show_year,
+                "created_by": created_by,
+            }
+        )
+
+    async def update_birthday(self, birthday_id: str, data: dict, household_id: str | None = None) -> dict | None:
+        # `updated_at` is maintained by the calendar_birthdays_set_updated_at trigger, not here.
+        criteria = Criteria().eq("id", birthday_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        result = await self.store("calendar_birthdays").update_where(criteria, data)
+        return result[0] if result else None
+
+    async def delete_birthday(self, birthday_id: str, household_id: str | None = None) -> bool:
+        criteria = Criteria().eq("id", birthday_id)
+        if household_id is not None:
+            criteria = criteria.eq("household_id", household_id)
+        result = await self.store("calendar_birthdays").delete_where(criteria)
         return len(result) > 0
 
 

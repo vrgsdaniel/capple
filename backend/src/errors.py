@@ -28,3 +28,11 @@ class ForbiddenException(Exception):
     def __init__(self, message: str = "Forbidden"):
         self.message = message
         super().__init__(self.message)
+
+
+class ValidationException(Exception):
+    """Exception raised when a write violates a database check constraint."""
+
+    def __init__(self, message: str = "Invalid data"):
+        self.message = message
+        super().__init__(self.message)
