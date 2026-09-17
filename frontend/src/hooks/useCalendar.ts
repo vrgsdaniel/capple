@@ -18,22 +18,35 @@ export function useCalendar(from: string, to: string) {
 
   // Loading only guards the very first fetch — switching month/view keeps the current feed
   // on screen until the new range resolves, rather than flashing a loading state.
-  const fetchFeed = useCallback(async (cancelledRef?: { current: boolean }) => {
+  const fetchFeed = useCallback(async () => {
     try {
       const res = await api.get<CalendarFeed>('/api/calendar/events', { params: { from, to } })
-      if (!cancelledRef?.current) { setFeed(res.data); setError(null) }
+      setFeed(res.data)
+      setError(null)
     } catch {
-      if (!cancelledRef?.current) setError('Could not load the calendar.')
+      setError('Could not load the calendar.')
     } finally {
-      if (!cancelledRef?.current) setLoading(false)
+      setLoading(false)
     }
   }, [from, to])
 
+  // Inlined rather than calling fetchFeed(): the react-hooks lint rules can verify a setState
+  // call made directly inside an effect's own async body, but not one made through a separately
+  // memoized function reference (see useGroceryList/useBatteryLogs for the same shape).
   useEffect(() => {
-    const cancelledRef = { current: false }
-    fetchFeed(cancelledRef)
-    return () => { cancelledRef.current = true }
-  }, [fetchFeed])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await api.get<CalendarFeed>('/api/calendar/events', { params: { from, to } })
+        if (!cancelled) { setFeed(res.data); setError(null) }
+      } catch {
+        if (!cancelled) setError('Could not load the calendar.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [from, to])
 
   const createEvent = async (payload: CreateEventPayload) => {
     await api.post<CalendarEvent>('/api/calendar/events', payload)
