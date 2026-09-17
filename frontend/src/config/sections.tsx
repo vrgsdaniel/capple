@@ -6,6 +6,7 @@ const TasksTab = lazy(() => import('@/components/tasks/TasksTab'))
 const BatteryTab = lazy(() => import('@/components/battery/BatteryTab'))
 const MealsTab = lazy(() => import('@/components/meals/MealsTab'))
 const GroceriesTab = lazy(() => import('@/components/groceries/GroceriesTab'))
+const CalendarTab = lazy(() => import('@/components/calendar/CalendarTab'))
 
 export interface SectionContext {
   profile: Profile | null
@@ -76,9 +77,22 @@ export const SECTIONS: Section[] = [
       ) : null,
   },
   {
+    id: 'calendar',
+    title: 'Calendar',
+    icon: '📅',
+    color: '#5B8DEF',
+    description: 'Shared events & birthdays',
+    render: ({ household }) =>
+      household ? (
+        <Suspense fallback={null}>
+          <CalendarTab householdId={household.id} />
+        </Suspense>
+      ) : null,
+  },
+  {
     id: 'activities',
     title: 'Activities',
-    icon: '📅',
+    icon: '🏃',
     color: '#FF6B9D',
     description: 'Log & analyze activities',
     disabled: true,
